@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { Message, User, Agent } from "../types.js";
 import { getLocalIPs } from "./utils.js";
 
@@ -9,6 +10,11 @@ export function createAPIRoutes(
   PORT: number
 ) {
   const app = new Hono();
+
+  app.use('/api/*', cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+  }));
 
   app.get("/api/stats", (c) => {
     return c.json({

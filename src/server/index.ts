@@ -19,7 +19,7 @@ async function startServer() {
   // Initialize Honcho
   const honcho = new Honcho({
     baseURL: process.env.HONCHO_BASE_URL || "http://localhost:8000",
-    apiKey: process.env.HONCHO_API_KEY || "",
+    apiKey: process.env.HONCHO_API_KEY,
     workspaceId: process.env.HONCHO_WORKSPACE_ID || "default",
   });
 

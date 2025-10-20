@@ -2,6 +2,8 @@
 
 A real-time chat application built with **Bun**, **TypeScript**, and **Hono**, designed for LAN use with built-in support for AI agents and structured data processing. **Users can connect with standard Unix tools like netcat, telnet, or the provided terminal client.**
 
+> **Frontend**: The web UI is in a separate repository: [lanchat-ui](https://github.com/yourusername/lanchat-ui)
+
 ## Features
 
 - **Modern Stack**: Built with Bun, TypeScript, and Hono for optimal performance
@@ -180,6 +182,34 @@ Both netcat and terminal clients support:
                    │  Chat History │
                    │   & State     │
                    └───────────────┘
+```
+
+## Deployment
+
+### Backend (This Repo)
+
+- **Railway**: Connect GitHub repo, auto-detects Bun
+- **Fly.io**: Great for WebSocket servers, use `fly.toml`
+- **Render**: Free tier available, handles WebSockets
+- **VPS**: Deploy with PM2 or Docker
+
+### Frontend (lanchat-ui repo)
+
+- **Vercel**: Connect GitHub repo, set `VITE_API_URL` env var
+- **Netlify**: Similar to Vercel, set environment variables
+- **Cloudflare Pages**: Fast global CDN
+
+### Environment Variables
+
+```bash
+# Backend
+HONCHO_BASE_URL=https://api.honcho.dev/
+HONCHO_API_KEY=your_api_key
+HONCHO_WORKSPACE_ID=default
+PORT=3000
+
+# Frontend
+VITE_API_URL=http://localhost:3000
 ```
 
 ## License

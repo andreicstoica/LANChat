@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 
 import { io, type Socket } from "socket.io-client";
-import { Ollama } from "ollama";
 import { Honcho } from "@honcho-ai/sdk";
+import { getLLMProvider } from "./llm/factory.js";
+import type { LLMProvider, LLMMessage } from "./llm/interface.js";
 import type {
   Message,
   ResponseDecision,
@@ -20,12 +21,12 @@ const SERVER_URL = serverArg
   ? serverArg.split("=")[1]
   : Bun.env.CHAT_SERVER || "http://localhost:3000";
 
-const MODEL: string = Bun.env.MODEL || "llama3.1:8b";
+// LLM configuration is now handled by the LLM provider factory
 
 class ChatAgent {
   protected socket: Socket | null = null;
   protected agentName: string;
-  protected ollama: Ollama;
+  protected llm: LLMProvider;
   protected systemPrompt: string;
   protected temperature: number = 0.7;
   protected responseLength: number = 100;
@@ -35,7 +36,7 @@ class ChatAgent {
 
   constructor(agentName: string, systemPrompt?: string) {
     this.agentName = agentName;
-    this.ollama = new Ollama({ host: "http://localhost:11434" });
+    this.llm = getLLMProvider();
 
     this.honcho = new Honcho({
       baseURL: process.env.HONCHO_BASE_URL || "http://localhost:8000",
@@ -69,10 +70,10 @@ Feel empowered to be chatty and ask follow-up questions.
     this.socket.on("connect", () => {
       console.log("✅ Connected to chat server");
 
-      // Register as a regular user (not as agent type)
+      // Register as an agent
       this.socket!.emit("register", {
         username: this.agentName,
-        type: "user",
+        type: "agent",
       });
     });
 
@@ -104,7 +105,11 @@ Feel empowered to be chatty and ask follow-up questions.
   }
 
   private async processMessage(message: Message): Promise<void> {
-    const session = await this.honcho.session(this.sessionId || "");
+    if (!this.sessionId) {
+      console.log("⚠️ No session ID yet, skipping message processing");
+      return;
+    }
+    const session = await this.honcho.session(this.sessionId);
     const senderPeer = await this.honcho.peer(message.username);
     // Build context
     const context = await session.getContext({
@@ -115,7 +120,7 @@ Feel empowered to be chatty and ask follow-up questions.
     });
     const recentContext: string = context.toOpenAI(this.agentName).join("\n");
     // add message to honcho
-    session.addMessages([senderPeer.message(message.content)]);
+    await session.addMessages([senderPeer.message(message.content)]);
     // State 1: Decide if we should respond
     const decision = await this.shouldRespond(message, recentContext);
     console.log(
@@ -138,9 +143,8 @@ Feel empowered to be chatty and ask follow-up questions.
     // search for additional context
     // response directly
     try {
-      const response = await this.ollama.generate({
-        model: MODEL,
-        prompt: `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should respond.
+      const response = await this.llm.generate(
+        `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should respond.
 
 Recent conversation, summary, and/or peer information:
 ${recentContext}
@@ -163,15 +167,15 @@ Respond with a JSON object with this exact format:
 }
 
 JSON response:`,
-        format: "json",
-        options: {
+        {
           temperature: 0.3,
-          num_predict: 100,
-        },
-      });
+          max_tokens: 100,
+          format: "json",
+        }
+      );
 
       // Parse the response
-      const decision = JSON.parse(response.response) as AgentDecision;
+      const decision = JSON.parse(response.content) as AgentDecision;
 
       if (
         decision.decision === "psychology" &&
@@ -183,7 +187,7 @@ JSON response:`,
         );
         console.log("Psychology response:", psychologyResponse);
         tracker["psychology"] = psychologyResponse;
-        this.decideAction(message, recentContext, tracker);
+        return await this.decideAction(message, recentContext, tracker);
       } else if (
         decision.decision === "search" &&
         tracker["search"] === undefined
@@ -200,7 +204,7 @@ JSON response:`,
           messages.push(searchResponse);
         }
         tracker["search"] = messages;
-        this.decideAction(message, recentContext, tracker);
+        return await this.decideAction(message, recentContext, tracker);
       } else {
         await this.generateResponse(message, recentContext, tracker);
       }
@@ -216,9 +220,8 @@ JSON response:`,
     recentContext: string,
   ): Promise<ResponseDecision> {
     try {
-      const response = await this.ollama.generate({
-        model: MODEL,
-        prompt: `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should respond.
+      const response = await this.llm.generate(
+        `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should respond.
 
 Recent conversation, summary, and/or peer information:
 ${recentContext}
@@ -241,15 +244,15 @@ Consider:
 lean on the side of responding and keeping the conversation going
 
 JSON response:`,
-        format: "json",
-        options: {
+        {
           temperature: 0.3,
-          num_predict: 100,
-        },
-      });
+          max_tokens: 100,
+          format: "json",
+        }
+      );
 
       // Parse the response
-      const decision = JSON.parse(response.response) as ResponseDecision;
+      const decision = JSON.parse(response.content) as ResponseDecision;
       return decision;
     } catch (error) {
       console.error("Error in decision making:", error);
@@ -264,9 +267,8 @@ JSON response:`,
 
   private async search(message: Message, recentContext: string): Promise<any> {
     try {
-      const response = await this.ollama.generate({
-        model: MODEL,
-        prompt: `You are ${this.agentName} in a group chat. You want to search the conversation history to get more context on something.
+      const response = await this.llm.generate(
+        `You are ${this.agentName} in a group chat. You want to search the conversation history to get more context on something.
 
 Recent conversation:
 ${recentContext}
@@ -281,16 +283,20 @@ Respond with a JSON object with this exact format:
 }
 
 JSON response:`,
-        format: "json",
-        options: {
+        {
           temperature: 0.3,
-          num_predict: 100,
-        },
-      });
+          max_tokens: 100,
+          format: "json",
+        }
+      );
 
-      const search = JSON.parse(response.response) as Search;
+      const search = JSON.parse(response.content) as Search;
 
-      const session = await this.honcho.session(this.sessionId || "");
+      if (!this.sessionId) {
+        console.log("⚠️ No session ID yet, skipping search");
+        return;
+      }
+      const session = await this.honcho.session(this.sessionId);
       const semanticResponse = await session.search(search.query);
 
       return semanticResponse;
@@ -304,9 +310,8 @@ JSON response:`,
     recentContext: string,
   ): Promise<any> {
     try {
-      const response = await this.ollama.generate({
-        model: MODEL,
-        prompt: `You are ${this.agentName} in a group chat. You want to analyze the psychology of a participant more deeply to understand how to best respond.
+      const response = await this.llm.generate(
+        `You are ${this.agentName} in a group chat. You want to analyze the psychology of a participant more deeply to understand how to best respond.
 
 Recent conversation:
 ${recentContext}
@@ -322,19 +327,18 @@ Respond with a JSON object with this exact format:
 }
 
 JSON response:`,
-        format: "json",
-        options: {
+        {
           temperature: 0.3,
-          num_predict: 100,
-        },
-      });
+          max_tokens: 100,
+          format: "json",
+        }
+      );
 
-      const dialectic = JSON.parse(response.response) as Dialectic;
+      const dialectic = JSON.parse(response.content) as Dialectic;
 
-      const peer = await this.honcho.peer(this.agentName);
+      const peer = await this.honcho.peer(dialectic.target);
       const dialecticResponse = await peer.chat(dialectic.question, {
         sessionId: this.sessionId || undefined,
-        target: dialectic.target,
       });
       return dialecticResponse;
     } catch (error) {
@@ -351,7 +355,7 @@ JSON response:`,
       console.log(`💭 Generating response...`);
 
       // Initial chat with tools
-      const messages = [
+      const messages: LLMMessage[] = [
         {
           role: "system",
           content: this.systemPrompt,
@@ -363,31 +367,26 @@ ${recentContext}
 
 ${message.username} said: "${message.content}"
 
-${tracker["psychology"] ? `Psychology analysis of ${message.username}: ${tracker["psychology"]}` : ""}
+${tracker["psychology"] ? `Psychology analysis of ${message.username}: ${JSON.stringify(tracker["psychology"], null, 2)}` : ""}
 
-${tracker["search"] ? `Semantic search of conversation history: ${tracker["search"]}` : ""}
+${tracker["search"] ? `Semantic search of conversation history: ${JSON.stringify(tracker["search"], null, 2)}` : ""}
 
 Please respond naturally as ${this.agentName}.`,
         },
       ];
 
-      const response = await this.ollama.chat({
-        model: MODEL,
-        messages: messages,
-        options: {
-          temperature: this.temperature,
-          num_predict: this.responseLength + 50, // Extra tokens for tool calls
-        },
+      const response = await this.llm.chat(messages, {
+        temperature: this.temperature,
+        max_tokens: this.responseLength + 50, // Extra tokens for tool calls
       });
 
       // Debug logging
-      console.log("Ollama response:", JSON.stringify(response, null, 2));
+      console.log("LLM response:", JSON.stringify(response, null, 2));
 
-      const responseContent = response.message?.content?.trim();
+      const responseContent = response.content?.trim();
 
       if (!responseContent) {
-        console.error("Empty response from Ollama - full response:", response);
-        console.error("Model used:", MODEL);
+        console.error("Empty response from LLM - full response:", response);
         return;
       }
 
@@ -398,9 +397,11 @@ Please respond naturally as ${this.agentName}.`,
         content: responseContent,
       });
       // save our own message to honcho
-      const session = await this.honcho.session(this.sessionId || "");
-      const peer = await this.honcho.peer(this.agentName);
-      session.addMessages([peer.message(responseContent)]);
+      if (this.sessionId) {
+        const session = await this.honcho.session(this.sessionId);
+        const peer = await this.honcho.peer(this.agentName);
+        await session.addMessages([peer.message(responseContent)]);
+      }
     } catch (error) {
       console.error("Error generating response:", error);
     }

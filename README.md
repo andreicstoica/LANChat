@@ -23,7 +23,60 @@ A real-time chat application built with **Bun**, **TypeScript**, and **Hono**, d
 bun install
 ```
 
-### 2. Start the Server
+### 2. Configure LLM Provider
+
+The system supports multiple LLM providers. Choose one based on your needs:
+
+#### Option A: Local Development with Ollama (Recommended for local testing)
+
+1. Install and start Ollama:
+
+```bash
+# Install Ollama (if not already installed)
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model (e.g., Llama 3.1 8B)
+ollama pull llama3.1:8b
+
+# Start Ollama server
+ollama serve
+```
+
+2. Copy environment file:
+
+```bash
+cp env.local .env
+```
+
+#### Option B: Local Development with LMStudio (OpenAI-compatible)
+
+1. Install and start LMStudio:
+
+   - Download from [LMStudio.ai](https://lmstudio.ai)
+   - Load a model (e.g., Llama 3.1 8B)
+   - Start the local server on port 1234
+
+2. Update your `.env` file:
+
+```bash
+cp env.local .env
+# Edit .env and change LLM_PROVIDER=lmstudio
+```
+
+#### Option C: Production with OpenAI API
+
+1. Get an OpenAI API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+
+2. Copy and configure environment:
+
+```bash
+cp env.example .env
+# Edit .env and set:
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=your_actual_api_key_here
+```
+
+### 3. Start the Server
 
 ```bash
 bun start
@@ -33,7 +86,7 @@ bun dev
 
 The server will automatically detect your network interfaces and show you exactly how to connect!
 
-### 3. Connect Users
+### 4. Connect Users
 
 The server will show you exactly which IPs to use! Example output:
 
@@ -57,7 +110,7 @@ bun run client Alice
 bun run client Bob --server=http://192.168.1.100:3000
 ```
 
-### 4. Start AI Agents
+### 5. Start AI Agents
 
 ```bash
 # Start an agent with default name
@@ -129,35 +182,89 @@ socket.emit("get_history", { limit: 100 }, (response) => {
 });
 ```
 
+## LLM Configuration
+
+The system supports multiple LLM providers through environment configuration:
+
+### Environment Variables
+
+| Variable            | Description                                   | Default                     | Required     |
+| ------------------- | --------------------------------------------- | --------------------------- | ------------ |
+| `LLM_PROVIDER`      | Provider type: `ollama`, `openai`, `lmstudio` | `ollama`                    | No           |
+| `OLLAMA_HOST`       | Ollama server URL                             | `http://localhost:11434`    | For Ollama   |
+| `OLLAMA_MODEL`      | Ollama model name                             | `llama3.1:8b`               | For Ollama   |
+| `OPENAI_API_KEY`    | OpenAI API key                                | -                           | For OpenAI   |
+| `OPENAI_BASE_URL`   | OpenAI API base URL                           | `https://api.openai.com/v1` | For OpenAI   |
+| `OPENAI_MODEL`      | OpenAI model name                             | `gpt-4o-mini`               | For OpenAI   |
+| `LMSTUDIO_BASE_URL` | LMStudio server URL                           | `http://localhost:1234/v1`  | For LMStudio |
+
+### Provider Comparison
+
+| Provider     | Use Case                | Pros                      | Cons                           |
+| ------------ | ----------------------- | ------------------------- | ------------------------------ |
+| **Ollama**   | Local development       | Free, fast, offline       | Requires local setup           |
+| **LMStudio** | Local OpenAI-compatible | GUI interface, OpenAI API | Requires local setup           |
+| **OpenAI**   | Production              | Reliable, powerful        | Costs money, requires internet |
+
 ## Extending with Real AI
 
-To integrate with actual AI services (like Claude), modify the `agent.js` file:
+The system now uses a flexible LLM interface that supports multiple providers. To add a new provider, implement the `LLMProvider` interface:
 
-```javascript
-async getAIResponse(prompt, context = {}) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "user",
-          content: `Chat context: ${JSON.stringify(context)}\n\nUser message: ${prompt}`
-        }
-      ]
-    })
-  });
+```typescript
+// Example: Adding a new Anthropic provider
+import type {
+  LLMProvider,
+  LLMMessage,
+  LLMResponse,
+  LLMGenerateOptions,
+} from "./llm/interface.js";
 
-  const data = await response.json();
-  return {
-    response: data.content[0].text,
-    confidence: 0.9
-  };
+export class AnthropicProvider implements LLMProvider {
+  private apiKey: string;
+  private model: string;
+
+  constructor(apiKey: string, model: string = "claude-3-sonnet-20240229") {
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+
+  async generate(
+    prompt: string,
+    options: LLMGenerateOptions = {}
+  ): Promise<LLMResponse> {
+    const messages: LLMMessage[] = [{ role: "user", content: prompt }];
+    return this.chat(messages, options);
+  }
+
+  async chat(
+    messages: LLMMessage[],
+    options: LLMGenerateOptions = {}
+  ): Promise<LLMResponse> {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: options.max_tokens || 1000,
+        messages: messages,
+        temperature: options.temperature || 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Anthropic API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      content: data.content[0]?.text || "",
+      usage: data.usage,
+    };
+  }
 }
 ```
 

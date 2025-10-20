@@ -17,6 +17,7 @@ export interface LLMGenerateOptions {
     max_tokens?: number;
     format?: 'json' | 'text';
     model?: string;
+    responseFormat?: Record<string, unknown>;
 }
 
 export interface LLMProvider {

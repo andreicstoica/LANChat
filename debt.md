@@ -20,3 +20,8 @@
 - **FIXED**: Tool recursion wasn't awaited - second `decideAction` call ran outside try/catch, turning JSON parsing errors into unhandled rejections
 - **FIXED**: Object serialization bug - `tracker["psychology"]` and `tracker["search"]` objects were interpolated as `[object Object]` in prompts
 - **FIXED**: Psychology analysis targeted wrong peer - called `honcho.peer(this.agentName)` then passed `target` in options, analyzing own psychology instead of target participant
+
+# agent.ts Structured Output Follow-Ups
+
+- Inline JSON-schema builders (`getShouldRespondSchema`, `getActionDecisionSchema`, etc.) were added directly in `agent.ts`; should consolidate or share types so every agent extension isn't re-defining them.
+- Added `safeParse`/`extractJSONObject`/`normalizeDecision` helpers in `agent.ts` to recover malformed structured responses; move this resilience into the LLM provider so downstream code can assume clean JSON.

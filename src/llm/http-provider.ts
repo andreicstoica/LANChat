@@ -23,7 +23,7 @@ export class HTTPProvider implements LLMProvider {
     }
 
     async chat(messages: LLMMessage[], options: LLMGenerateOptions = {}): Promise<LLMResponse> {
-        const { temperature, max_tokens, format, model } = options;
+        const { temperature, max_tokens, format, model, responseFormat } = options;
         const payload: Record<string, unknown> = {
             model: model || this.model,
             messages,
@@ -37,9 +37,11 @@ export class HTTPProvider implements LLMProvider {
             payload.max_tokens = max_tokens;
         }
 
-        if (format === "json") {
+        if (responseFormat) {
+            payload.response_format = responseFormat;
+        } else if (format === "json") {
             // Default to response decision schema, but this could be made more flexible
-            payload.response_format = {
+            payload.response_format = { 
                 type: "json_schema",
                 json_schema: {
                     name: "response_decision",

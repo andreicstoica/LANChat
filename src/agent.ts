@@ -174,7 +174,7 @@ JSON response:`,
         {
           temperature: 0.3,
           max_tokens: 200,
-          format: "json",
+          responseFormat: this.getActionDecisionSchema(),
         }
       );
 
@@ -265,7 +265,7 @@ JSON response:`,
         {
           temperature: 0.3,
           max_tokens: 200,
-          format: "json",
+          responseFormat: this.getShouldRespondSchema(),
         }
       );
 
@@ -317,7 +317,7 @@ JSON response:`,
         {
           temperature: 0.3,
           max_tokens: 200,
-          format: "json",
+          responseFormat: this.getPsychologySchema(),
         }
       );
 
@@ -454,6 +454,87 @@ Please respond naturally as ${this.agentName}.`,
     if (this.socket) {
       this.socket.disconnect();
     }
+  }
+
+  private getShouldRespondSchema(): Record<string, unknown> {
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "should_respond_decision",
+        schema: {
+          type: "object",
+          properties: {
+            should_respond: { type: "boolean" },
+            reason: { type: "string" },
+            confidence: {
+              type: "number",
+              minimum: 0.0,
+              maximum: 1.0,
+            },
+          },
+          required: ["should_respond", "reason", "confidence"],
+          additionalProperties: false,
+        },
+      },
+    };
+  }
+
+  private getActionDecisionSchema(): Record<string, unknown> {
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "agent_action_decision",
+        schema: {
+          type: "object",
+          properties: {
+            decision: { type: "string" },
+            reason: { type: "string" },
+            confidence: {
+              type: "number",
+              minimum: 0.0,
+              maximum: 1.0,
+            },
+          },
+          required: ["decision", "reason", "confidence"],
+          additionalProperties: false,
+        },
+      },
+    };
+  }
+
+  private getSearchSchema(): Record<string, unknown> {
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "search_query",
+        schema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+    };
+  }
+
+  private getPsychologySchema(): Record<string, unknown> {
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "psychology_request",
+        schema: {
+          type: "object",
+          properties: {
+            target: { type: "string" },
+            question: { type: "string" },
+          },
+          required: ["target", "question"],
+          additionalProperties: false,
+        },
+      },
+    };
   }
 
   private sanitizeUsername(username: string): string {

@@ -106,3 +106,28 @@ export interface Dialectic {
 export interface Search {
   query: string;
 }
+
+// Game-specific types
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  status: "active" | "completed" | "failed";
+  objectives: string[];
+}
+
+export interface NPCState {
+  name: string;
+  mood: string;
+  location: string;
+  trustLevel: number; // -100 to 100
+  lastInteraction: string;
+}
+
+export interface GameState {
+  currentScene: string;
+  activeQuests: Quest[];
+  npcStates: Map<string, NPCState>;
+  turnOrder?: string[]; // optional turn-based mode
+  gameMode: boolean;
+}

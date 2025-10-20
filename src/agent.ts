@@ -389,7 +389,7 @@ JSON response:`,
     }
   }
 
-  private async generateResponse(
+  protected async generateResponse(
     message: Message,
     recentContext: string,
     tracker: Record<string, any>,
@@ -537,7 +537,7 @@ Please respond naturally as ${this.agentName}.`,
     };
   }
 
-  private sanitizeUsername(username: string): string {
+  protected sanitizeUsername(username: string): string {
     return username
       .replace(/[^a-zA-Z0-9_-]/g, "_")
       .replace(/_{2,}/g, "_")

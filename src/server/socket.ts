@@ -26,6 +26,7 @@ export function setupSocketIO(
 
     socket.on("register", async (data: { username: string; type?: string; capabilities?: string[] }) => {
       const { username, type = "human" } = data;
+      const sanitizedUsername = sanitizeUsername(username);
 
       if (type === "agent") {
         const agent: Agent = {
@@ -34,14 +35,13 @@ export function setupSocketIO(
           type: "agent",
           capabilities: data.capabilities || [],
           socket,
+          peerId: sanitizedUsername,
         };
         agents.set(socket.id, agent);
-        const sanitizedUsername = sanitizeUsername(username);
         const agent_peer = await honcho.peer(sanitizedUsername, { config: { observe_me: false } });
         await session.addPeers([[agent_peer, new SessionPeerConfig(false, true)]]);
         print(`agent registered: ${username}`, "green");
       } else {
-        const sanitizedUsername = sanitizeUsername(username);
         const user_peer = await honcho.peer(sanitizedUsername);
         // get the user's existing config if it exists
         const config = await user_peer.getPeerConfig() as Record<string, boolean>;
@@ -51,6 +51,7 @@ export function setupSocketIO(
           type: "human",
           socket,
           observe_me: config.observe_me || true,
+          peerId: sanitizedUsername,
         };
         await session.addPeers([user_peer]);
         print(`user registered: ${username}`, "green");
@@ -75,6 +76,8 @@ export function setupSocketIO(
       const user = connectedUsers.get(socket.id) || agents.get(socket.id);
       if (!user) return;
 
+      const peerId = user.peerId ?? sanitizeUsername(user.username);
+
       const message = createMessage({
         type: MessageType.CHAT,
         username: user.username,
@@ -82,6 +85,7 @@ export function setupSocketIO(
         metadata: {
           userId: socket.id,
           userType: user.type,
+          peerId,
           ...data.metadata,
         },
       });
@@ -258,7 +262,10 @@ async function broadcastMessage(message: Message, io: SocketIOServer, honcho: Ho
   // Only add messages to Honcho for chat messages from real users/agents
   if (message.type === MessageType.CHAT && message.content) {
     try {
-      const peer = await honcho.peer(message.username);
+      const peerId =
+        (message.metadata && message.metadata.peerId) ||
+        sanitizeUsername(message.username);
+      const peer = await honcho.peer(peerId);
       await session.addMessages([peer.message(message.content)]);
     } catch (error) {
       console.error(`Failed to add message to Honcho session: ${error}`);

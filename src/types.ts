@@ -36,6 +36,7 @@ export interface User {
   type: "human";
   socket?: any;
   observe_me?: boolean;
+  peerId: string;
 }
 
 export interface Agent {
@@ -44,6 +45,7 @@ export interface Agent {
   type: "agent";
   capabilities: string[];
   socket: any;
+  peerId: string;
 }
 
 // Network interface type
@@ -104,4 +106,3 @@ export interface Dialectic {
 export interface Search {
   query: string;
 }
-

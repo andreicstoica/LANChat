@@ -163,37 +163,48 @@ You have 3 different tools you can use to gather more context before responding.
 
 Respond with a JSON object with this exact format:
 {
-  "decision": psychology or search or respond,
+ "decision": psychology or search or respond,
   "reason": "brief explanation",
   "confidence": 0.0 to 1.0
 }
 
+Return ONLY this JSON object. Use the lowercase words "psychology", "search", or "respond" for the decision value. Do not include explanations or any text outside the braces.
+
 JSON response:`,
         {
           temperature: 0.3,
-          max_tokens: 100,
+          max_tokens: 200,
           format: "json",
         }
       );
 
       // Parse the response
-      const decision = JSON.parse(response.content) as AgentDecision;
+      const decision = this.safeParse<AgentDecision>(response.content);
+      const decisionType = this.normalizeDecision(decision?.decision);
 
-      if (
-        decision.decision === "psychology" &&
-        tracker["psychology"] === undefined
-      ) {
+      if (!decision || decisionType === "unknown") {
+        console.warn(
+          "Invalid or unrecognized decision, defaulting to direct response:",
+          response.content,
+        );
+        await this.generateResponse(message, recentContext, tracker);
+        return;
+      }
+
+      if (decisionType === "psychology" && tracker["psychology"] === undefined) {
         const psychologyResponse = await this.analyzePsychology(
           message,
           recentContext,
         );
         console.log("Psychology response:", psychologyResponse);
-        tracker["psychology"] = psychologyResponse;
-        return await this.decideAction(message, recentContext, tracker);
-      } else if (
-        decision.decision === "search" &&
-        tracker["search"] === undefined
-      ) {
+        tracker["psychology"] = psychologyResponse ?? null;
+        if (psychologyResponse) {
+          await this.decideAction(message, recentContext, tracker);
+          return;
+        }
+      }
+
+      if (decisionType === "search" && tracker["search"] === undefined) {
         const searchResponse = await this.search(message, recentContext);
         // Fix: searchResponse is already the data, no need to call .data()
         const messages = [];
@@ -201,15 +212,18 @@ JSON response:`,
           for (const msg of searchResponse) {
             messages.push(msg);
           }
-        } else if (searchResponse) {
+        } else if (searchResponse != null) {
           // Handle if it's a single message or different format
           messages.push(searchResponse);
         }
-        tracker["search"] = messages;
-        return await this.decideAction(message, recentContext, tracker);
-      } else {
-        await this.generateResponse(message, recentContext, tracker);
+        tracker["search"] = messages.length > 0 ? messages : null;
+        if (messages.length > 0) {
+          await this.decideAction(message, recentContext, tracker);
+          return;
+        }
       }
+
+      await this.generateResponse(message, recentContext, tracker);
     } catch (error) {
       console.error("Error in decision making:", error);
       // Default to not responding on error
@@ -234,7 +248,7 @@ Respond with a JSON object with this exact format:
 {
   "should_respond": true or false,
   "reason": "brief explanation",
-  "confidence": 0.0 to 1.0
+ "confidence": 0.0 to 1.0
 }
 
 Consider:
@@ -245,16 +259,29 @@ Consider:
 
 lean on the side of responding and keeping the conversation going
 
+Return ONLY the JSON object. Do not include explanations, prefixes, or suffixes.
+
 JSON response:`,
         {
           temperature: 0.3,
-          max_tokens: 100,
+          max_tokens: 200,
           format: "json",
         }
       );
 
       // Parse the response
-      const decision = JSON.parse(response.content) as ResponseDecision;
+      const decision = this.safeParse<ResponseDecision>(response.content);
+      if (!decision) {
+        console.warn(
+          "Invalid should-respond output, defaulting to respond:",
+          response.content,
+        );
+        return {
+          should_respond: true,
+          reason: "Fallback: invalid decision JSON",
+          confidence: 0.1,
+        };
+      }
       return decision;
     } catch (error) {
       console.error("Error in decision making:", error);
@@ -281,18 +308,24 @@ Decide on a semantic query to search for in the conversation history
 
 Respond with a JSON object with this exact format:
 {
-  "query": Word or Phrase you want to search to get more context,
+ "query": Word or Phrase you want to search to get more context,
 }
+
+Return ONLY this JSON object. Do not include any additional text.
 
 JSON response:`,
         {
           temperature: 0.3,
-          max_tokens: 100,
+          max_tokens: 200,
           format: "json",
         }
       );
 
-      const search = JSON.parse(response.content) as Search;
+      const search = this.safeParse<Search>(response.content);
+      if (!search || !search.query) {
+        console.warn("Invalid search response:", response.content);
+        return;
+      }
 
       if (!this.sessionId) {
         console.log("⚠️ No session ID yet, skipping search");
@@ -325,18 +358,24 @@ Decide who you want to ask a question about and what question you want to ask
 Respond with a JSON object with this exact format:
 {
   "target": string,
-  "question": "What do you want to know about the target that would help you respond?",
+ "question": "What do you want to know about the target that would help you respond?",
 }
+
+Return ONLY this JSON object. Do not include any other text or explanation.
 
 JSON response:`,
         {
           temperature: 0.3,
-          max_tokens: 100,
+          max_tokens: 200,
           format: "json",
         }
       );
 
-      const dialectic = JSON.parse(response.content) as Dialectic;
+      const dialectic = this.safeParse<Dialectic>(response.content);
+      if (!dialectic || !dialectic.target || !dialectic.question) {
+        console.warn("Invalid psychology response:", response.content);
+        return;
+      }
 
       const peer = await this.honcho.peer(
         this.sanitizeUsername(dialectic.target),
@@ -422,6 +461,73 @@ Please respond naturally as ${this.agentName}.`,
       .replace(/[^a-zA-Z0-9_-]/g, "_")
       .replace(/_{2,}/g, "_")
       .replace(/^_|_$/g, "");
+  }
+
+  private safeParse<T>(content: string): T | null {
+    if (!content) {
+      return null;
+    }
+
+    const candidate = this.extractJSONObject(content);
+    if (!candidate) {
+      console.error("Failed to locate JSON object in response:", content);
+      return null;
+    }
+
+    try {
+      return JSON.parse(candidate) as T;
+    } catch (error) {
+      console.error("Failed to parse JSON response:", candidate);
+      return null;
+    }
+  }
+
+  private extractJSONObject(content: string): string | null {
+    const trimmed = content.trim();
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) {
+      return null;
+    }
+    return trimmed.slice(start, end + 1);
+  }
+
+  private normalizeDecision(decision?: string): "psychology" | "search" | "respond" | "unknown" {
+    if (!decision) {
+      return "unknown";
+    }
+
+    const normalized = decision.trim().toLowerCase();
+
+    if (!normalized) {
+      return "unknown";
+    }
+
+    if (normalized === "psychology") {
+      return "psychology";
+    }
+
+    if (normalized === "search") {
+      return "search";
+    }
+
+    if (normalized === "respond" || normalized === "respond directly") {
+      return "respond";
+    }
+
+    if (normalized.includes("psycholog") || normalized.includes("analyz")) {
+      return "psychology";
+    }
+
+    if (normalized.includes("search")) {
+      return "search";
+    }
+
+    if (normalized.includes("respond")) {
+      return "respond";
+    }
+
+    return "unknown";
   }
 }
 

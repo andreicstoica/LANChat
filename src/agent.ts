@@ -110,7 +110,9 @@ Feel empowered to be chatty and ask follow-up questions.
       return;
     }
     const session = await this.honcho.session(this.sessionId);
-    const senderPeer = await this.honcho.peer(message.username);
+    const senderPeer = await this.honcho.peer(
+      this.sanitizeUsername(message.username),
+    );
     // Build context
     const context = await session.getContext({
       summary: true,
@@ -336,7 +338,9 @@ JSON response:`,
 
       const dialectic = JSON.parse(response.content) as Dialectic;
 
-      const peer = await this.honcho.peer(dialectic.target);
+      const peer = await this.honcho.peer(
+        this.sanitizeUsername(dialectic.target),
+      );
       const dialecticResponse = await peer.chat(dialectic.question, {
         sessionId: this.sessionId || undefined,
       });
@@ -399,7 +403,7 @@ Please respond naturally as ${this.agentName}.`,
       // save our own message to honcho
       if (this.sessionId) {
         const session = await this.honcho.session(this.sessionId);
-        const peer = await this.honcho.peer(this.agentName);
+        const peer = await this.honcho.peer(this.sanitizeUsername(this.agentName));
         await session.addMessages([peer.message(responseContent)]);
       }
     } catch (error) {
@@ -411,6 +415,13 @@ Please respond naturally as ${this.agentName}.`,
     if (this.socket) {
       this.socket.disconnect();
     }
+  }
+
+  private sanitizeUsername(username: string): string {
+    return username
+      .replace(/[^a-zA-Z0-9_-]/g, "_")
+      .replace(/_{2,}/g, "_")
+      .replace(/^_|_$/g, "");
   }
 }
 

@@ -5,7 +5,7 @@ import { HTTPProvider } from "./http-provider.js";
 export type LLMProviderType = "ollama" | "openrouter" | "lmstudio";
 
 type HTTPProviderConfig = {
-    apiKey: string;
+    apiKey: string | null;
     baseURL: string;
     model: string;
 };
@@ -35,10 +35,9 @@ const PROVIDERS: Record<LLMProviderType, () => LLMProvider> = {
         return makeHTTPProvider({ apiKey, baseURL, model });
     },
     lmstudio: () => {
-        const apiKey = "lm-studio";
         const baseURL = process.env.LMSTUDIO_BASE_URL || "http://localhost:1234/v1";
-        const model = process.env.LMSTUDIO_MODEL || "qwen/qwen3-4b-thinking-2507";
-        return makeHTTPProvider({ apiKey, baseURL, model });
+        const model = process.env.LMSTUDIO_MODEL || "qwen/qwen3-4b-2507";
+        return makeHTTPProvider({ apiKey: null, baseURL, model });
     },
 };
 

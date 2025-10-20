@@ -1,12 +1,12 @@
 import type { LLMProvider, LLMMessage, LLMResponse, LLMGenerateOptions } from "./interface.js";
 
 export class HTTPProvider implements LLMProvider {
-    private apiKey: string;
+    private apiKey: string | null;
     private baseURL: string;
     private model: string;
 
     constructor(
-        apiKey: string,
+        apiKey: string | null = null,
         baseURL: string = "https://openrouter.ai/api/v1",
         model: string = "z-ai/glm-4.5-air:free"
     ) {
@@ -38,20 +38,69 @@ export class HTTPProvider implements LLMProvider {
         }
 
         if (format === "json") {
-            payload.response_format = { type: "json_object" };
+            // Default to response decision schema, but this could be made more flexible
+            payload.response_format = {
+                type: "json_schema",
+                json_schema: {
+                    name: "response_decision",
+                    schema: {
+                        type: "object",
+                        properties: {
+                            should_respond: {
+                                type: "boolean",
+                                description: "Whether the agent should respond to the message"
+                            },
+                            decision: {
+                                type: "string",
+                                description: "The decision made by the agent"
+                            },
+                            reason: {
+                                type: "string",
+                                description: "Brief explanation for the decision"
+                            },
+                            confidence: {
+                                type: "number",
+                                minimum: 0.0,
+                                maximum: 1.0,
+                                description: "Confidence level in the decision (0.0 to 1.0)"
+                            },
+                            query: {
+                                type: "string",
+                                description: "Search query if applicable"
+                            },
+                            target: {
+                                type: "string",
+                                description: "Target for dialectic if applicable"
+                            },
+                            question: {
+                                type: "string",
+                                description: "Question for dialectic if applicable"
+                            }
+                        },
+                        required: ["reason", "confidence"],
+                        additionalProperties: false
+                    }
+                }
+            };
+        }
+
+        const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+        };
+
+        if (this.apiKey) {
+            headers["Authorization"] = `Bearer ${this.apiKey}`;
         }
 
         const response = await fetch(`${this.baseURL}/chat/completions`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${this.apiKey}`,
-            },
+            headers,
             body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP API error: ${response.status} ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP API error: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json() as {

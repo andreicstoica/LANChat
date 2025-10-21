@@ -94,6 +94,17 @@ export class ChatAgent {
 
     this.socket.on("disconnect", (reason) => {
       console.log(`❌ Disconnected from server: ${reason}`);
+
+      if (reason === "io server disconnect") {
+        console.log("🔄 Server requested disconnect, attempting to rejoin...");
+        setTimeout(() => {
+          try {
+            this.socket?.connect();
+          } catch (err) {
+            console.error("Failed to reconnect after server disconnect:", err);
+          }
+        }, 1000);
+      }
     });
 
     this.socket.on("message", async (message: Message) => {

@@ -8,7 +8,7 @@ export class HTTPProvider implements LLMProvider {
     constructor(
         apiKey: string | null = null,
         baseURL: string = "https://openrouter.ai/api/v1",
-        model: string = "z-ai/glm-4.5-air:free"
+        model: string = "deepseek/deepseek-v3.2-exp"
     ) {
         this.apiKey = apiKey;
         this.baseURL = baseURL;
@@ -92,6 +92,30 @@ export class HTTPProvider implements LLMProvider {
 
         if (this.apiKey) {
             headers["Authorization"] = `Bearer ${this.apiKey}`;
+        }
+
+        const isOpenRouter = this.baseURL.includes("openrouter.ai");
+
+        if (isOpenRouter) {
+            // OpenRouter requires identifying headers for rate-limiting and telemetry
+            const siteUrl = process.env.OPENROUTER_SITE_URL || "https://github.com/andreistoica/LANChat";
+            const siteName = process.env.OPENROUTER_SITE_NAME || "LANChat";
+            headers["HTTP-Referer"] = siteUrl;
+            headers["X-Title"] = siteName;
+
+            const includeReasoningEnv = process.env.OPENROUTER_INCLUDE_REASONING;
+            if (includeReasoningEnv !== undefined) {
+                const includeReasoning = includeReasoningEnv.trim().toLowerCase();
+                const reasoningEnabled = includeReasoning === "true" || includeReasoning === "1" || includeReasoning === "yes";
+                const reasoningDisabled = includeReasoning === "false" || includeReasoning === "0" || includeReasoning === "no";
+
+                if (reasoningEnabled) {
+                    payload.include_reasoning = true;
+                } else if (reasoningDisabled) {
+                    payload.include_reasoning = false;
+                    payload.reasoning = { exclude: true };
+                }
+            }
         }
 
         const response = await fetch(`${this.baseURL}/chat/completions`, {

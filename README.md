@@ -64,17 +64,17 @@ cp env.local .env
 # Edit .env and change LLM_PROVIDER=lmstudio
 ```
 
-#### Option C: Production with OpenAI API
+#### Option C: Production with OpenRouter API
 
-1. Get an OpenAI API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+1. Get an OpenRouter API key from [OpenRouter](https://openrouter.ai)
 
 2. Copy and configure environment:
 
 ```bash
 cp env.example .env
 # Edit .env and set:
-# LLM_PROVIDER=openai
-# OPENAI_API_KEY=your_actual_api_key_here
+# LLM_PROVIDER=openrouter
+# OPENROUTER_API_KEY=your_actual_api_key_here
 ```
 
 ### 3. Start the Server
@@ -207,12 +207,15 @@ The system supports multiple LLM providers through environment configuration:
 
 | Variable            | Description                                   | Default                     | Required     |
 | ------------------- | --------------------------------------------- | --------------------------- | ------------ |
-| `LLM_PROVIDER`      | Provider type: `ollama`, `openai`, `lmstudio` | `ollama`                    | No           |
+| `LLM_PROVIDER`      | Provider type: `ollama`, `openrouter`, `lmstudio` | `ollama`                | No           |
 | `OLLAMA_HOST`       | Ollama server URL                             | `http://localhost:11434`    | For Ollama   |
 | `OLLAMA_MODEL`      | Ollama model name                             | `llama3.1:8b`               | For Ollama   |
-| `OPENAI_API_KEY`    | OpenAI API key                                | -                           | For OpenAI   |
-| `OPENAI_BASE_URL`   | OpenAI API base URL                           | `https://api.openai.com/v1` | For OpenAI   |
-| `OPENAI_MODEL`      | OpenAI model name                             | `gpt-4o-mini`               | For OpenAI   |
+| `OPENROUTER_API_KEY`| OpenRouter API key                            | -                           | For OpenRouter |
+| `OPENROUTER_BASE_URL`| OpenRouter API base URL                      | `https://openrouter.ai/api/v1` | For OpenRouter |
+| `OPENROUTER_MODEL`  | OpenRouter model name                         | `z-ai/glm-4.5-air:free`     | For OpenRouter |
+| `OPENROUTER_SITE_URL`| Site or repo URL for OpenRouter attribution  | `https://github.com/andreistoica/LANChat` | For OpenRouter |
+| `OPENROUTER_SITE_NAME`| Application name for OpenRouter attribution | `LANChat`                   | For OpenRouter |
+| `OPENROUTER_INCLUDE_REASONING` | Set to `false` to exclude reasoning traces from responses | - | Optional |
 | `LMSTUDIO_BASE_URL` | LMStudio server URL                           | `http://localhost:1234/v1`  | For LMStudio |
 
 ### Provider Comparison
@@ -221,7 +224,7 @@ The system supports multiple LLM providers through environment configuration:
 | ------------ | ----------------------- | ------------------------- | ------------------------------ |
 | **Ollama**   | Local development       | Free, fast, offline       | Requires local setup           |
 | **LMStudio** | Local OpenAI-compatible | GUI interface, OpenAI API | Requires local setup           |
-| **OpenAI**   | Production              | Reliable, powerful        | Costs money, requires internet |
+| **OpenRouter** | Production           | Large model selection     | Requires API key, usage billed |
 
 ## Extending with Real AI
 

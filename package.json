@@ -4,15 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/server/index.ts",
+    "start": "bun run src/server/game.ts",
     "game": "./scripts/run-game.sh",
     "monitor": "bun run src/monitor.ts",
     "visualize": "bun run src/visualize-reps.ts",
     "dev": "bun --watch src/server/index.ts",
     "client": "bun run src/client/terminal-client.ts",
     "agent": "bun run src/agent.ts",
-    "build": "bun build src/server/index.ts --outdir ./dist --target bun",
-    "build:game": "bun build src/server/index.ts --outdir ./dist --target bun -- --game",
+    "build": "bun build src/server/game.ts --outdir ./dist --target bun",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {

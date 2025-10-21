@@ -3,12 +3,19 @@ import { cors } from "hono/cors";
 import type { Message, User, Agent, GameState, NPCState } from "../types.js";
 import { getLocalIPs } from "./utils.js";
 
+type RestartHandler = () => Promise<{ sessionId: string }>;
+
+interface ApiRouteOptions {
+  onRestart?: RestartHandler;
+}
+
 export function createAPIRoutes(
   connectedUsers: Map<string, User>,
   agents: Map<string, Agent>,
   chatHistory: Message[],
   PORT: number,
-  gameState?: GameState
+  gameState?: GameState,
+  options?: ApiRouteOptions
 ) {
   const app = new Hono();
 
@@ -87,6 +94,23 @@ export function createAPIRoutes(
     });
 
     // Simplified - only keep essential endpoints for UI
+  }
+
+  if (options?.onRestart) {
+    app.post("/api/game/restart", async (c) => {
+      try {
+        const result = await options.onRestart!();
+        return c.json({
+          status: "ok",
+          sessionId: result.sessionId,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to restart";
+        const status = message.includes("Restart already in progress") ? 409 : 500;
+        return c.json({ status: "error", message }, status);
+      }
+    });
   }
 
   return app;

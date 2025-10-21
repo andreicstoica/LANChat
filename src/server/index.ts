@@ -27,13 +27,16 @@ async function startServer() {
 
   // Create or use existing session
   const sessionId = providedSessionId || `groupchat-${Date.now()}`;
-  const session = await honcho.session(sessionId);
+  let session = await honcho.session(sessionId);
   print(`honcho session: ${session.id}`, "cyan");
 
   // Application state
   const connectedUsers = new Map<string, User>();
   const chatHistory: Message[] = [];
   const agents = new Map<string, Agent>();
+  const getSession = () => session;
+  let io: SocketIOServer | null = null;
+  let isRestarting = false;
 
   // Game state
   const gameState: GameState = {
@@ -76,8 +79,59 @@ async function startServer() {
   // Configuration
   const PORT = parseInt(Bun.env.PORT || "3000");
 
+  const resetGameState = () => {
+    gameState.currentLevel = 0;
+    gameState.levelName = "The Dev Environment";
+    gameState.playerProgress.learnedConcepts = [];
+    gameState.playerProgress.npcTrustLevels = {};
+  };
+
+  const restartService = async () => {
+    if (isRestarting) {
+      throw new Error("Restart already in progress");
+    }
+
+    isRestarting = true;
+    print("♻️  Restart requested via API...", "magenta");
+
+    try {
+      const currentSession = session;
+
+      // Disconnect all sockets and clear state
+      if (io) {
+        io.sockets.sockets.forEach((socket) => {
+          try {
+            socket.disconnect(true);
+          } catch (err) {
+            print(`⚠️  Error disconnecting socket: ${err}`, "yellow");
+          }
+        });
+      }
+
+      connectedUsers.clear();
+      agents.clear();
+      chatHistory.length = 0;
+      resetGameState();
+
+      try {
+        await currentSession.delete();
+        print("🧹 Deleted previous Honcho session", "cyan");
+      } catch (error) {
+        print(`⚠️  Failed to delete Honcho session (continuing): ${error}`, "yellow");
+      }
+
+      const newSessionId = `groupchat-${Date.now()}`;
+      session = await honcho.session(newSessionId);
+
+      print(`✅ Restart complete. New honcho session: ${session.id}`, "green");
+      return { sessionId: session.id };
+    } finally {
+      isRestarting = false;
+    }
+  };
+
   // Create API routes
-  const app = createAPIRoutes(connectedUsers, agents, chatHistory, PORT, gameState);
+  const app = createAPIRoutes(connectedUsers, agents, chatHistory, PORT, gameState, { onRestart: restartService });
 
   // Create HTTP server
   const server = createServer(async (req, res) => {
@@ -103,7 +157,7 @@ async function startServer() {
   });
 
   // Setup Socket.IO
-  const io = new SocketIOServer(server, {
+  const ioServer = new SocketIOServer(server, {
     cors: {
       origin: "*",
       methods: ["GET", "POST"],
@@ -113,7 +167,8 @@ async function startServer() {
     transports: ["websocket", "polling"],
   });
 
-  setupSocketIO(io, connectedUsers, agents, chatHistory, honcho, session);
+  io = ioServer;
+  setupSocketIO(ioServer, connectedUsers, agents, chatHistory, honcho, getSession);
 
   // Start server
   print("starting LAN chat server...", "blue");

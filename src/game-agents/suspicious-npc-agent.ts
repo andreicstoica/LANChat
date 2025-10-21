@@ -38,7 +38,7 @@ You have access to psychology analysis - use it to assess whether players are tr
 
 Remember: You are a character in the story, not the narrator. Stay in character and respond naturally to player interactions.`;
 
-        super(name, suspiciousPrompt);
+        super(name, suspiciousPrompt, SERVER_URL);
 
         this.temperature = 0.6; // More controlled responses
         this.responseLength = 50;

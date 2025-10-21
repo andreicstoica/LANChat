@@ -49,7 +49,7 @@ You have access to player psychology analysis - use it to tailor the story to ea
 
 Remember: You are the narrator, not a character. Guide the story, don't participate in it.`;
 
-        super(agentName, gmPrompt);
+        super(agentName, gmPrompt, SERVER_URL);
 
         // GM should be more selective about when to respond
         this.temperature = 0.8;

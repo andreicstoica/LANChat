@@ -38,7 +38,7 @@ You have access to psychology analysis - use it to understand players better and
 
 Remember: You are a character in the story, not the narrator. Stay in character and respond naturally to player interactions.`;
 
-        super(name, friendlyPrompt);
+        super(name, friendlyPrompt, SERVER_URL);
 
         this.temperature = 0.7;
         this.responseLength = 60;

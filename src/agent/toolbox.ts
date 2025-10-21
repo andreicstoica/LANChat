@@ -15,9 +15,10 @@ export class AgentToolbox {
     private readonly llm: LLMProvider,
     private readonly honcho: Honcho,
     private readonly agentName: string,
-  ) {}
+  ) { }
 
   async analyzePsychology({ message, recentContext, sessionId }: ToolContext) {
+    console.log(`🔍 ${this.agentName} executing psychology analysis tool...`);
     const prompt = `You are ${this.agentName} in a group chat. You want to analyze the psychology of a participant more deeply to understand how to best respond.
 
 Recent conversation:
@@ -40,7 +41,7 @@ JSON response:`;
     const response = await this.llm.generate(prompt, {
       temperature: 0.3,
       max_tokens: 200,
-      format: "json",
+      responseFormat: psychologySchema(),
     });
 
     const dialectic = safeParse<Dialectic>(response.content, "psychology");
@@ -57,6 +58,7 @@ JSON response:`;
   }
 
   async search({ message, recentContext, sessionId }: ToolContext) {
+    console.log(`🔍 ${this.agentName} executing search tool...`);
     const prompt = `You are ${this.agentName} in a group chat. You want to search the conversation history to get more context on something.
 
 Recent conversation:

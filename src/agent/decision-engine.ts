@@ -117,12 +117,15 @@ JSON response:`;
       const decision = safeParse<AgentDecision>(response.content, "action decision");
       const decisionType = normalizeDecision(decision?.decision);
 
+      console.log(`🤔 ${this.agentName} tool decision: ${decisionType} - ${decision?.reason}`);
+
       if (!decision || decisionType === "unknown") {
         console.warn("Invalid or unrecognized decision, defaulting to direct response:", response?.content);
         break;
       }
 
       if (decisionType === "psychology" && tracker["psychology"] === undefined) {
+        console.log(`🔍 ${this.agentName} decided to use psychology analysis tool`);
         const psychologyResponse = await context.tools.analyzePsychology();
         tracker["psychology"] = psychologyResponse ?? null;
         if (psychologyResponse) {
@@ -131,6 +134,7 @@ JSON response:`;
       }
 
       if (decisionType === "search" && tracker["search"] === undefined) {
+        console.log(`🔍 ${this.agentName} decided to use search tool`);
         const searchResponse = await context.tools.search();
         const messages: any[] = [];
 

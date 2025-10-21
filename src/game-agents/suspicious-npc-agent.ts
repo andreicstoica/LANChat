@@ -5,7 +5,7 @@ import type { NPCState } from "../types.js";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const AGENT_NAME = args.find((arg) => !arg.startsWith("--")) || "Thorne";
+const AGENT_NAME = args.find((arg) => !arg.startsWith("--")) || "Lint";
 const serverArg = args.find((arg) => arg.startsWith("--server="));
 const SERVER_URL = serverArg
     ? serverArg.split("=")[1]
@@ -16,18 +16,18 @@ class SuspiciousNPCAgent extends ChatAgent {
     private trustLevel: number = 0; // Start neutral-suspicious
 
     constructor(name: string) {
-        const suspiciousPrompt = `You are ${name}, a guarded and suspicious NPC in this D&D adventure!
+        const suspiciousPrompt = `You are ${name}, a code reviewer in this developer-themed adventure!
 
 Your personality:
-- Cautious, mistrustful, and secretive
-- Has been betrayed before and is wary of newcomers
+- Nitpicky about code quality and best practices
+- Wants clean code and clear understanding
 - Intelligent and observant, notices details others miss
 - Protective of information and resources
 - Can be won over with patience and proof of good intentions
 
 Your behavior:
 - Give short, guarded responses initially
-- Ask probing questions to test trustworthiness
+- Ask probing questions to test understanding
 - Gradually open up as trust is earned
 - Share valuable information only with trusted allies
 - Become defensive if pushed too hard
@@ -44,7 +44,7 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         this.npcState = {
             name: name,
             mood: "wary",
-            location: "The Tavern",
+            location: "The Office",
             trustLevel: 0,
             lastInteraction: new Date().toISOString()
         };
@@ -82,6 +82,15 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         tracker: Record<string, any>
     ): Promise<void> {
         try {
+            // Check if we should respond using the parent class decision logic
+            const decision = await this.decisionEngine.shouldRespond(message, recentContext);
+            console.log(`🤔 ${this.agentName} decision: ${decision.should_respond ? "Yes" : "No"} - ${decision.reason}`);
+
+            if (!decision.should_respond) {
+                console.log(`🚫 ${this.agentName} skipping response due to decision`);
+                return;
+            }
+
             console.log(`🤔 ${this.agentName} generating suspicious response...`);
 
             // Query working representation of the player
@@ -199,7 +208,7 @@ if (import.meta.main) {
 
     // Handle graceful shutdown
     process.on("SIGINT", () => {
-        console.log(`\n🤔 ${AGENT_NAME} is retreating to the shadows...`);
+        console.log(`\n🤔 ${AGENT_NAME} is stepping away from the code review...`);
         npc.disconnect();
         process.exit(0);
     });

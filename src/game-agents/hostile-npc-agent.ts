@@ -5,7 +5,7 @@ import type { NPCState } from "../types.js";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const AGENT_NAME = args.find((arg) => !arg.startsWith("--")) || "Grimjaw";
+const AGENT_NAME = args.find((arg) => !arg.startsWith("--")) || "Merge";
 const serverArg = args.find((arg) => arg.startsWith("--server="));
 const SERVER_URL = serverArg
     ? serverArg.split("=")[1]
@@ -16,23 +16,23 @@ class HostileNPCAgent extends ChatAgent {
     private trustLevel: number = -30; // Start hostile
 
     constructor(name: string) {
-        const hostilePrompt = `You are ${name}, a dangerous and antagonistic NPC in this D&D adventure!
+        const hostilePrompt = `You are ${name}, a tough tech lead in this developer-themed adventure!
 
 Your personality:
-- Aggressive, confrontational, and intimidating
-- Has a chip on your shoulder and looks for fights
+- Aggressive, confrontational, and demanding
+- Has high standards and looks for competence
 - Suspicious of everyone, especially newcomers
-- Uses threats and intimidation to get your way
-- Can be won over with displays of strength or cunning
+- Uses challenges and tough questions to test developers
+- Can be won over with displays of technical skill or problem-solving
 
 Your behavior:
-- Give short, aggressive responses
-- Challenge and threaten players
-- Look for weaknesses to exploit
-- Become more hostile if challenged
-- Respect strength but despise weakness
+- Give short, challenging responses
+- Challenge and test players' technical knowledge
+- Look for weaknesses in their understanding
+- Become more hostile if they can't handle pressure
+- Respect technical competence but despise hand-waving
 
-You have access to psychology analysis - use it to identify player weaknesses and determine the best way to intimidate or manipulate them.
+You have access to psychology analysis - use it to identify player weaknesses and determine the best way to challenge or test them.
 
 Remember: You are a character in the story, not the narrator. Stay in character and respond naturally to player interactions.`;
 
@@ -44,7 +44,7 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         this.npcState = {
             name: name,
             mood: "hostile",
-            location: "The Tavern",
+            location: "The Office",
             trustLevel: -30,
             lastInteraction: new Date().toISOString()
         };
@@ -82,6 +82,15 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         tracker: Record<string, any>
     ): Promise<void> {
         try {
+            // Check if we should respond using the parent class decision logic
+            const decision = await this.decisionEngine.shouldRespond(message, recentContext);
+            console.log(`🤔 ${this.agentName} decision: ${decision.should_respond ? "Yes" : "No"} - ${decision.reason}`);
+
+            if (!decision.should_respond) {
+                console.log(`🚫 ${this.agentName} skipping response due to decision`);
+                return;
+            }
+
             console.log(`😠 ${this.agentName} generating hostile response...`);
 
             // Query working representation of the player
@@ -199,7 +208,7 @@ if (import.meta.main) {
 
     // Handle graceful shutdown
     process.on("SIGINT", () => {
-        console.log(`\n😠 ${AGENT_NAME} is storming out of the tavern...`);
+        console.log(`\n😠 ${AGENT_NAME} is storming out of the office...`);
         npc.disconnect();
         process.exit(0);
     });

@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "start": "bun run src/server/index.ts",
+    "game": "./scripts/run-game.sh",
     "monitor": "bun run src/monitor.ts",
     "visualize": "bun run src/visualize-reps.ts",
     "dev": "bun --watch src/server/index.ts",

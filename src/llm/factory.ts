@@ -1,6 +1,6 @@
-import type { LLMProvider } from "./interface.js";
-import { OllamaProvider } from "./ollama-provider.js";
-import { HTTPProvider } from "./http-provider.js";
+import type { LLMProvider } from "./interface.ts";
+import { OllamaProvider } from "./ollama-provider.ts";
+import { HTTPProvider } from "./http-provider.ts";
 
 export type LLMProviderType = "ollama" | "openrouter" | "lmstudio";
 

@@ -1,4 +1,4 @@
-import type { LLMProvider, LLMMessage, LLMResponse, LLMGenerateOptions } from "./interface.js";
+import type { LLMProvider, LLMMessage, LLMResponse, LLMGenerateOptions } from "./interface.ts";
 
 export class HTTPProvider implements LLMProvider {
     private apiKey: string | null;
@@ -8,7 +8,7 @@ export class HTTPProvider implements LLMProvider {
     constructor(
         apiKey: string | null = null,
         baseURL: string = "https://openrouter.ai/api/v1",
-        model: string = "z-ai/glm-4.5-air:free"
+        model: string = "deepseek/deepseek-v3.2-exp"
     ) {
         this.apiKey = apiKey;
         this.baseURL = baseURL;
@@ -41,7 +41,7 @@ export class HTTPProvider implements LLMProvider {
             payload.response_format = responseFormat;
         } else if (format === "json") {
             // Default to response decision schema, but this could be made more flexible
-            payload.response_format = { 
+            payload.response_format = {
                 type: "json_schema",
                 json_schema: {
                     name: "response_decision",
@@ -94,6 +94,30 @@ export class HTTPProvider implements LLMProvider {
             headers["Authorization"] = `Bearer ${this.apiKey}`;
         }
 
+        const isOpenRouter = this.baseURL.includes("openrouter.ai");
+
+        if (isOpenRouter) {
+            // OpenRouter requires identifying headers for rate-limiting and telemetry
+            const siteUrl = process.env.OPENROUTER_SITE_URL || "https://github.com/andreistoica/LANChat";
+            const siteName = process.env.OPENROUTER_SITE_NAME || "LANChat";
+            headers["HTTP-Referer"] = siteUrl;
+            headers["X-Title"] = siteName;
+
+            const includeReasoningEnv = process.env.OPENROUTER_INCLUDE_REASONING;
+            if (includeReasoningEnv !== undefined) {
+                const includeReasoning = includeReasoningEnv.trim().toLowerCase();
+                const reasoningEnabled = includeReasoning === "true" || includeReasoning === "1" || includeReasoning === "yes";
+                const reasoningDisabled = includeReasoning === "false" || includeReasoning === "0" || includeReasoning === "no";
+
+                if (reasoningEnabled) {
+                    payload.include_reasoning = true;
+                } else if (reasoningDisabled) {
+                    payload.include_reasoning = false;
+                    payload.reasoning = { exclude: true };
+                }
+            }
+        }
+
         const response = await fetch(`${this.baseURL}/chat/completions`, {
             method: "POST",
             headers,
@@ -102,7 +126,14 @@ export class HTTPProvider implements LLMProvider {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`HTTP API error: ${response.status} ${response.statusText} - ${errorText}`);
+            let hint = "";
+
+            if (response.status === 404 && !this.apiKey && this.baseURL.startsWith("http://localhost")) {
+                hint =
+                    " (hint: LM Studio could not find the requested model. Launch LM Studio and load the model you want, or set LMSTUDIO_MODEL to one of the models you have downloaded.)";
+            }
+
+            throw new Error(`HTTP API error: ${response.status} ${response.statusText} - ${errorText}${hint}`);
         }
 
         const data = await response.json() as {
@@ -114,9 +145,18 @@ export class HTTPProvider implements LLMProvider {
             };
         };
 
+        const rawContent = data.choices[0]?.message?.content || "";
+
         return {
-            content: data.choices[0]?.message?.content || "",
+            content: stripHiddenReasoning(rawContent),
             usage: data.usage,
         };
     }
+}
+
+function stripHiddenReasoning(content: string | undefined): string {
+    if (!content) return "";
+
+    const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    return cleaned.length > 0 ? cleaned : content.trim();
 }

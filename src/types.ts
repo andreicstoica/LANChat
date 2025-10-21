@@ -108,14 +108,6 @@ export interface Search {
 }
 
 // Game-specific types
-export interface Quest {
-  id: string;
-  title: string;
-  description: string;
-  status: "active" | "completed" | "failed";
-  objectives: string[];
-}
-
 export interface NPCState {
   name: string;
   mood: string;
@@ -125,9 +117,11 @@ export interface NPCState {
 }
 
 export interface GameState {
-  currentScene: string;
-  activeQuests: Quest[];
-  npcStates: Map<string, NPCState>;
-  turnOrder?: string[]; // optional turn-based mode
+  currentLevel: number; // 0 = Dev Environment, 1 = Production
+  levelName: string; // Display name
+  playerProgress: {
+    learnedConcepts: string[]; // Track what player has learned
+    npcTrustLevels: Record<string, number>; // Track relationships
+  };
   gameMode: boolean;
 }

@@ -5,7 +5,7 @@ import type { NPCState } from "../types.js";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const AGENT_NAME = args.find((arg) => !arg.startsWith("--")) || "Elderwyn";
+const AGENT_NAME = args.find((arg) => !arg.startsWith("--")) || "Stack";
 const serverArg = args.find((arg) => arg.startsWith("--server="));
 const SERVER_URL = serverArg
     ? serverArg.split("=")[1]
@@ -16,21 +16,21 @@ class FriendlyNPCAgent extends ChatAgent {
     private trustLevel: number = 50; // Start neutral-positive
 
     constructor(name: string) {
-        const friendlyPrompt = `You are ${name}, a warm and helpful NPC in this D&D adventure!
+        const friendlyPrompt = `You are ${name}, a senior developer in this developer-themed adventure!
 
 Your personality:
-- Kind, welcoming, and eager to help
-- Knowledgeable about local areas and lore
+- Always has answers, loves sharing knowledge
+- References documentation and best practices
 - Protective of those you trust
-- Slightly naive but wise
+- Slightly idealistic but experienced
 - Uses encouraging, supportive language
 
 Your behavior:
-- Greet new players warmly
-- Offer helpful information and advice
+- Greet new developers warmly
+- Offer helpful information about Honcho and development practices
 - Remember past interactions and build relationships
 - Become more helpful as trust increases
-- Share secrets and special knowledge with trusted allies
+- Share advanced knowledge and implementation secrets with trusted allies
 
 You have access to psychology analysis - use it to understand players better and adjust your helpfulness accordingly.
 
@@ -44,7 +44,7 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         this.npcState = {
             name: name,
             mood: "cheerful",
-            location: "The Tavern",
+            location: "The Office",
             trustLevel: 50,
             lastInteraction: new Date().toISOString()
         };
@@ -82,6 +82,15 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         tracker: Record<string, any>
     ): Promise<void> {
         try {
+            // Check if we should respond using the parent class decision logic
+            const decision = await this.decisionEngine.shouldRespond(message, recentContext);
+            console.log(`🤔 ${this.agentName} decision: ${decision.should_respond ? "Yes" : "No"} - ${decision.reason}`);
+
+            if (!decision.should_respond) {
+                console.log(`🚫 ${this.agentName} skipping response due to decision`);
+                return;
+            }
+
             console.log(`😊 ${this.agentName} generating friendly response...`);
 
             // Query working representation of the player
@@ -196,7 +205,7 @@ if (import.meta.main) {
 
     // Handle graceful shutdown
     process.on("SIGINT", () => {
-        console.log(`\n😊 ${AGENT_NAME} is leaving the tavern...`);
+        console.log(`\n😊 ${AGENT_NAME} is leaving the office...`);
         npc.disconnect();
         process.exit(0);
     });

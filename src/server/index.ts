@@ -27,19 +27,25 @@ async function startServer() {
 
   // Create or use existing session
   const sessionId = providedSessionId || `groupchat-${Date.now()}`;
-  const session = await honcho.session(sessionId);
+  let session = await honcho.session(sessionId);
   print(`honcho session: ${session.id}`, "cyan");
 
   // Application state
   const connectedUsers = new Map<string, User>();
   const chatHistory: Message[] = [];
   const agents = new Map<string, Agent>();
+  const getSession = () => session;
+  let io: SocketIOServer | null = null;
+  let isRestarting = false;
 
   // Game state
   const gameState: GameState = {
-    currentScene: "The Tavern",
-    activeQuests: [],
-    npcStates: new Map(),
+    currentLevel: 0,
+    levelName: "The Dev Environment",
+    playerProgress: {
+      learnedConcepts: [],
+      npcTrustLevels: {}
+    },
     gameMode: gameFlag
   };
 
@@ -73,8 +79,59 @@ async function startServer() {
   // Configuration
   const PORT = parseInt(Bun.env.PORT || "3000");
 
+  const resetGameState = () => {
+    gameState.currentLevel = 0;
+    gameState.levelName = "The Dev Environment";
+    gameState.playerProgress.learnedConcepts = [];
+    gameState.playerProgress.npcTrustLevels = {};
+  };
+
+  const restartService = async () => {
+    if (isRestarting) {
+      throw new Error("Restart already in progress");
+    }
+
+    isRestarting = true;
+    print("♻️  Restart requested via API...", "magenta");
+
+    try {
+      const currentSession = session;
+
+      // Disconnect all sockets and clear state
+      if (io) {
+        io.sockets.sockets.forEach((socket) => {
+          try {
+            socket.disconnect(true);
+          } catch (err) {
+            print(`⚠️  Error disconnecting socket: ${err}`, "yellow");
+          }
+        });
+      }
+
+      connectedUsers.clear();
+      agents.clear();
+      chatHistory.length = 0;
+      resetGameState();
+
+      try {
+        await currentSession.delete();
+        print("🧹 Deleted previous Honcho session", "cyan");
+      } catch (error) {
+        print(`⚠️  Failed to delete Honcho session (continuing): ${error}`, "yellow");
+      }
+
+      const newSessionId = `groupchat-${Date.now()}`;
+      session = await honcho.session(newSessionId);
+
+      print(`✅ Restart complete. New honcho session: ${session.id}`, "green");
+      return { sessionId: session.id };
+    } finally {
+      isRestarting = false;
+    }
+  };
+
   // Create API routes
-  const app = createAPIRoutes(connectedUsers, agents, chatHistory, PORT, gameState);
+  const app = createAPIRoutes(connectedUsers, agents, chatHistory, PORT, gameState, { onRestart: restartService });
 
   // Create HTTP server
   const server = createServer(async (req, res) => {
@@ -100,7 +157,7 @@ async function startServer() {
   });
 
   // Setup Socket.IO
-  const io = new SocketIOServer(server, {
+  const ioServer = new SocketIOServer(server, {
     cors: {
       origin: "*",
       methods: ["GET", "POST"],
@@ -110,61 +167,160 @@ async function startServer() {
     transports: ["websocket", "polling"],
   });
 
-  setupSocketIO(io, connectedUsers, agents, chatHistory, honcho, session);
-
-  // Start game agents if in game mode
-  if (gameFlag) {
-    print("🎲 Starting D&D game mode...", "magenta");
-    startGameAgents();
-  }
+  io = ioServer;
+  setupSocketIO(ioServer, connectedUsers, agents, chatHistory, honcho, getSession);
 
   // Start server
   print("starting LAN chat server...", "blue");
   server.listen(PORT, () => {
     print(`server listening on port ${PORT}`, "green");
     displayStartupInfo(PORT);
+
+    // Start game agents after the server is ready
+    if (gameFlag) {
+      print("🎲 Starting D&D game mode...", "magenta");
+      print("💡 Press Ctrl+C to stop all processes gracefully", "cyan");
+      startGameAgents();
+    }
   });
 }
+
+// Track all spawned processes for cleanup
+const spawnedProcesses: any[] = [];
+let isShuttingDown = false;
 
 // Function to start game agents
 function startGameAgents() {
   const serverUrl = `http://localhost:${process.env.PORT || "3000"}`;
 
-  // Start GM agent
-  const gmProcess = spawn("bun", ["run", "src/game-agents/gm-agent.ts", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
+  const agentConfigs = [
+    { name: "GM", script: "src/game-agents/gm-agent.ts", args: [`--server=${serverUrl}`] },
+    { name: "Stack (friendly)", script: "src/game-agents/friendly-npc-agent.ts", args: ["Stack", `--server=${serverUrl}`] },
+    { name: "Lint (suspicious)", script: "src/game-agents/suspicious-npc-agent.ts", args: ["Lint", `--server=${serverUrl}`] },
+    { name: "Merge (hostile)", script: "src/game-agents/hostile-npc-agent.ts", args: ["Merge", `--server=${serverUrl}`] }
+  ];
+
+  agentConfigs.forEach((config, index) => {
+    const childProcess = spawn("bun", ["run", config.script, ...config.args], {
+      stdio: "inherit",
+      cwd: process.cwd(),
+      detached: false
+    });
+
+    // Add process metadata
+    (childProcess as any).agentName = config.name;
+    (childProcess as any).agentIndex = index;
+
+    spawnedProcesses.push(childProcess);
+
+    // Handle process exit
+    childProcess.on('exit', (code: number | null, signal: string | null) => {
+      if (!isShuttingDown) {
+        print(`⚠️  ${config.name} agent exited with code ${code} (signal: ${signal})`, "yellow");
+      }
+    });
+
+    childProcess.on('error', (error: Error) => {
+      if (!isShuttingDown) {
+        print(`❌ Error starting ${config.name} agent: ${error.message}`, "red");
+      }
+    });
   });
 
-  // Start friendly NPC
-  const friendlyProcess = spawn("bun", ["run", "src/game-agents/friendly-npc-agent.ts", "Elderwyn", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
+  print("🎲 Game agents started: GM, Stack (friendly), Lint (suspicious), Merge (hostile)", "green");
 
-  // Start suspicious NPC
-  const suspiciousProcess = spawn("bun", ["run", "src/game-agents/suspicious-npc-agent.ts", "Thorne", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
-
-  // Start hostile NPC
-  const hostileProcess = spawn("bun", ["run", "src/game-agents/hostile-npc-agent.ts", "Grimjaw", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
-
-  // Handle process cleanup
-  process.on("SIGINT", () => {
-    print("🎲 Shutting down game agents...", "yellow");
-    gmProcess.kill();
-    friendlyProcess.kill();
-    suspiciousProcess.kill();
-    hostileProcess.kill();
-  });
-
-  print("🎲 Game agents started: GM, Elderwyn (friendly), Thorne (suspicious), Grimjaw (hostile)", "green");
+  // Monitor process health
+  setInterval(() => {
+    if (!isShuttingDown) {
+      const deadProcesses = spawnedProcesses.filter(proc => proc.killed);
+      if (deadProcesses.length > 0) {
+        print(`⚠️  ${deadProcesses.length} game agent(s) have died. Consider restarting.`, "yellow");
+      }
+    }
+  }, 10000); // Check every 10 seconds
 }
 
-startServer().catch(console.error);
+// Comprehensive cleanup handler for all processes
+function setupCleanupHandlers() {
+  const cleanup = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
 
+    print("\n🛑 Shutting down all processes...", "yellow");
+
+    // Create cleanup promises for all processes
+    const cleanupPromises = spawnedProcesses.map(async (proc, index) => {
+      if (proc && !proc.killed) {
+        const agentName = (proc as any).agentName || `Process ${index + 1}`;
+        print(`🔄 Stopping ${agentName}...`, "cyan");
+
+        try {
+          // Try graceful shutdown first
+          proc.kill("SIGTERM");
+
+          // Wait for graceful shutdown
+          await new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+              if (!proc.killed) {
+                print(`⚡ Force killing ${agentName}...`, "red");
+                proc.kill("SIGKILL");
+              }
+              resolve(true);
+            }, 1500);
+
+            proc.on('exit', () => {
+              clearTimeout(timeout);
+              resolve(true);
+            });
+          });
+
+          print(`✅ ${agentName} stopped`, "green");
+        } catch (error) {
+          print(`❌ Error stopping ${agentName}: ${error}`, "red");
+        }
+      }
+    });
+
+    // Wait for all processes to be cleaned up
+    await Promise.all(cleanupPromises);
+
+    // Additional cleanup: kill any remaining bun processes related to the game
+    try {
+      const { exec } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
+
+      // Kill any remaining game-related processes
+      await execAsync("pkill -f 'bun.*src/game-agents' || true");
+      await execAsync("pkill -f 'bun.*src/server.*--game' || true");
+    } catch (error) {
+      // Ignore errors in system cleanup
+    }
+
+    print("🎯 All processes terminated. Goodbye!", "green");
+    process.exit(0);
+  };
+
+  // Handle Ctrl+C (SIGINT)
+  process.on("SIGINT", cleanup);
+
+  // Handle termination signals
+  process.on("SIGTERM", cleanup);
+
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    print(`💥 Uncaught exception: ${error.message}`, "red");
+    cleanup();
+  });
+
+  // Handle unhandled promise rejections
+  process.on("unhandledRejection", (reason, promise) => {
+    print(`💥 Unhandled rejection: ${reason}`, "red");
+    cleanup();
+  });
+}
+
+// Setup cleanup handlers
+setupCleanupHandlers();
+
+startServer().catch(console.error);

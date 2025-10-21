@@ -14,6 +14,7 @@ A real-time chat application built with **Bun**, **TypeScript**, and **Hono**, d
 - **Agent Data Processing**: Agents can send/receive structured data for background processing
 - **No Dependencies for Users**: LAN users can join with tools already on their system
 - **Automatic Network Detection**: Server detects available IPs and provides connection guidance
+- **Developer Game Mode**: Optional Honcho-powered NPC experience that teaches Honcho concepts through play
 
 ## Quick Start
 
@@ -63,17 +64,17 @@ cp env.local .env
 # Edit .env and change LLM_PROVIDER=lmstudio
 ```
 
-#### Option C: Production with OpenAI API
+#### Option C: Production with OpenRouter API
 
-1. Get an OpenAI API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+1. Get an OpenRouter API key from [OpenRouter](https://openrouter.ai)
 
 2. Copy and configure environment:
 
 ```bash
 cp env.example .env
 # Edit .env and set:
-# LLM_PROVIDER=openai
-# OPENAI_API_KEY=your_actual_api_key_here
+# LLM_PROVIDER=openrouter
+# OPENROUTER_API_KEY=your_actual_api_key_here
 ```
 
 ### 3. Start the Server
@@ -119,6 +120,22 @@ bun run agent
 # Start with custom agent name
 bun run agent SmartBot
 ```
+
+### 6. Launch the Developer Game Mode
+
+```bash
+bun run start --game
+```
+
+This spins up a Honcho-powered session featuring:
+
+- **Honcho the GM** coordinating the narrative
+- **Stack** the mentor, **Lint** the skeptical reviewer, and **Merge** the antagonistic tech lead
+- Automatic level progression as players demonstrate their understanding of Honcho concepts
+
+The standard WebSockets endpoints remain available, so human users and agents can still connect with their usual tools.
+
+> For the full narrative, level objectives, and NPC behavior details, see [`GAME_MODE.md`](GAME_MODE.md).
 
 ## Message Types
 
@@ -190,12 +207,15 @@ The system supports multiple LLM providers through environment configuration:
 
 | Variable            | Description                                   | Default                     | Required     |
 | ------------------- | --------------------------------------------- | --------------------------- | ------------ |
-| `LLM_PROVIDER`      | Provider type: `ollama`, `openai`, `lmstudio` | `ollama`                    | No           |
+| `LLM_PROVIDER`      | Provider type: `ollama`, `openrouter`, `lmstudio` | `ollama`                | No           |
 | `OLLAMA_HOST`       | Ollama server URL                             | `http://localhost:11434`    | For Ollama   |
 | `OLLAMA_MODEL`      | Ollama model name                             | `llama3.1:8b`               | For Ollama   |
-| `OPENAI_API_KEY`    | OpenAI API key                                | -                           | For OpenAI   |
-| `OPENAI_BASE_URL`   | OpenAI API base URL                           | `https://api.openai.com/v1` | For OpenAI   |
-| `OPENAI_MODEL`      | OpenAI model name                             | `gpt-4o-mini`               | For OpenAI   |
+| `OPENROUTER_API_KEY`| OpenRouter API key                            | -                           | For OpenRouter |
+| `OPENROUTER_BASE_URL`| OpenRouter API base URL                      | `https://openrouter.ai/api/v1` | For OpenRouter |
+| `OPENROUTER_MODEL`  | OpenRouter model name                         | `z-ai/glm-4.5-air:free`     | For OpenRouter |
+| `OPENROUTER_SITE_URL`| Site or repo URL for OpenRouter attribution  | `https://github.com/andreistoica/LANChat` | For OpenRouter |
+| `OPENROUTER_SITE_NAME`| Application name for OpenRouter attribution | `LANChat`                   | For OpenRouter |
+| `OPENROUTER_INCLUDE_REASONING` | Set to `false` to exclude reasoning traces from responses | - | Optional |
 | `LMSTUDIO_BASE_URL` | LMStudio server URL                           | `http://localhost:1234/v1`  | For LMStudio |
 
 ### Provider Comparison
@@ -204,7 +224,7 @@ The system supports multiple LLM providers through environment configuration:
 | ------------ | ----------------------- | ------------------------- | ------------------------------ |
 | **Ollama**   | Local development       | Free, fast, offline       | Requires local setup           |
 | **LMStudio** | Local OpenAI-compatible | GUI interface, OpenAI API | Requires local setup           |
-| **OpenAI**   | Production              | Reliable, powerful        | Costs money, requires internet |
+| **OpenRouter** | Production           | Large model selection     | Requires API key, usage billed |
 
 ## Extending with Real AI
 
@@ -290,6 +310,25 @@ Both netcat and terminal clients support:
                    │   & State     │
                    └───────────────┘
 ```
+
+## Developer Game Mode Overview
+
+The optional developer-themed adventure layers Honcho's memory system on top of regular LANChat sessions.
+
+- NPCs track individual relationships and adjust tone, trust, and guidance per player
+- Honcho the GM injects story beats and advances the scene once learning objectives are met
+- Works seamlessly with human users, CLI clients, and agents connected through the standard endpoints
+
+### Levels
+
+- **Level 1 – The Dev Environment**: Learn Honcho working representations with Stack and earn Lint's trust to unlock the next stage
+- **Level 2 – Production Deploy**: Apply everything you've learned under pressure; final stop for mastering Honcho concepts
+
+### Monitoring Progress
+
+- `GET /api/game/state` exposes the current level, NPC relationships, and progression status for dashboard/UX integrations
+
+Read [`GAME_MODE.md`](GAME_MODE.md) for the complete narrative, NPC profiles, and gameplay tips.
 
 ## Deployment
 

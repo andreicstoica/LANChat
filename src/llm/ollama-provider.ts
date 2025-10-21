@@ -1,5 +1,5 @@
 import { Ollama } from "ollama";
-import type { LLMProvider, LLMMessage, LLMResponse, LLMGenerateOptions } from "./interface.js";
+import type { LLMProvider, LLMMessage, LLMResponse, LLMGenerateOptions } from "./interface.ts";
 
 export class OllamaProvider implements LLMProvider {
     private ollama: Ollama;
@@ -22,7 +22,7 @@ export class OllamaProvider implements LLMProvider {
         });
 
         return {
-            content: response.response,
+            content: stripHiddenReasoning(response.response),
         };
     }
 
@@ -36,8 +36,16 @@ export class OllamaProvider implements LLMProvider {
             },
         });
 
+        const rawContent = response.message?.content || "";
         return {
-            content: response.message?.content || "",
+            content: stripHiddenReasoning(rawContent),
         };
     }
+}
+
+function stripHiddenReasoning(content: string | undefined): string {
+    if (!content) return "";
+
+    const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    return cleaned.length > 0 ? cleaned : content.trim();
 }

@@ -1,6 +1,6 @@
 import { Server as SocketIOServer } from "socket.io";
-import { Honcho, Session, SessionPeerConfig } from "@honcho-ai/sdk";
-import { Honcho as HonchoCore } from "@honcho-ai/core";
+import { Honcho, SessionPeerConfig } from "@honcho-ai/sdk";
+import type { Session } from "@honcho-ai/sdk";
 import type { Message, User, Agent } from "../types.js";
 import { MessageType } from "../types.js";
 import { generateId, print } from "./utils.js";
@@ -19,7 +19,7 @@ export function setupSocketIO(
   agents: Map<string, Agent>,
   chatHistory: Message[],
   honcho: Honcho,
-  session: Session
+  getSession: () => Session
 ) {
   io.on("connection", (socket) => {
     print(`new connection: ${socket.id}`, "cyan");
@@ -39,6 +39,7 @@ export function setupSocketIO(
         };
         agents.set(socket.id, agent);
         const agent_peer = await honcho.peer(sanitizedUsername, { config: { observe_me: false } });
+        const session = getSession();
         await session.addPeers([[agent_peer, new SessionPeerConfig(false, true)]]);
         print(`agent registered: ${username}`, "green");
       } else {
@@ -53,13 +54,14 @@ export function setupSocketIO(
           observe_me: config.observe_me || true,
           peerId: sanitizedUsername,
         };
+        const session = getSession();
         await session.addPeers([user_peer]);
         print(`user registered: ${username}`, "green");
         connectedUsers.set(socket.id, user);
       }
 
       socket.emit("history", chatHistory.slice(-50));
-      socket.emit("session_id", session.id);
+      socket.emit("session_id", getSession().id);
 
       const joinMessage = createMessage({
         type: MessageType.JOIN,
@@ -91,7 +93,7 @@ export function setupSocketIO(
       });
 
       print(`${user.username}: ${data.content}`);
-      await broadcastMessage(message, io, honcho, session);
+      await broadcastMessage(message, io, honcho, getSession);
       addToHistory(message, chatHistory);
       notifyAgents(message, "chat_message", agents, connectedUsers, chatHistory);
     });
@@ -113,7 +115,7 @@ export function setupSocketIO(
       });
 
       if (data.broadcast) {
-        await broadcastMessage(message, io, honcho, session);
+        await broadcastMessage(message, io, honcho, getSession);
         addToHistory(message, chatHistory);
       } else if (data.targets) {
         data.targets.forEach((targetId: string) => {
@@ -144,7 +146,7 @@ export function setupSocketIO(
       });
 
       print(`${agent.username}: ${data.response}`);
-      await broadcastMessage(message, io, honcho, session);
+      await broadcastMessage(message, io, honcho, getSession);
       addToHistory(message, chatHistory);
     });
 
@@ -165,6 +167,7 @@ export function setupSocketIO(
         agents.delete(socket.id);
 
         const peer = await honcho.peer(user.username);
+        const session = getSession();
         await session.removePeers([peer]);
         print(`${user.type} disconnected: ${user.username}`, "yellow");
       }
@@ -212,6 +215,7 @@ export function setupSocketIO(
 
     socket.on("dialectic", async (data: { user: string; query: string }, callback: Function) => {
       const peer = await honcho.peer(data.user);
+      const session = getSession();
       const response = await peer.chat(data.query, { sessionId: session.id });
       callback(response || "No response from agent");
     });
@@ -256,7 +260,12 @@ export function setupSocketIO(
 }
 
 // Helper functions
-async function broadcastMessage(message: Message, io: SocketIOServer, honcho: Honcho, session: any): Promise<void> {
+async function broadcastMessage(
+  message: Message,
+  io: SocketIOServer,
+  honcho: Honcho,
+  getSession: () => Session
+): Promise<void> {
   io.emit("message", message);
 
   // Only add messages to Honcho for chat messages from real users/agents
@@ -266,6 +275,7 @@ async function broadcastMessage(message: Message, io: SocketIOServer, honcho: Ho
         (message.metadata && message.metadata.peerId) ||
         sanitizeUsername(message.username);
       const peer = await honcho.peer(peerId);
+      const session = getSession();
       await session.addMessages([peer.message(message.content)]);
     } catch (error) {
       console.error(`Failed to add message to Honcho session: ${error}`);

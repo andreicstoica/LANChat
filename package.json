@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/server/game.ts",
+    "start": "bun run dist/game.ts",
     "game": "./scripts/run-game.sh",
     "monitor": "bun run src/monitor.ts",
     "visualize": "bun run src/visualize-reps.ts",

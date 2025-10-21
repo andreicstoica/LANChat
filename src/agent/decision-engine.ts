@@ -27,7 +27,7 @@ export class DecisionEngine {
     const content = message.content.toLowerCase();
     const agentNameLower = this.agentName.toLowerCase();
 
-    // Direct name mentions
+    // Direct name mentions (case insensitive)
     if (content.includes(agentNameLower) || content.includes(`@${agentNameLower}`)) {
       return {
         should_respond: true,
@@ -42,6 +42,15 @@ export class DecisionEngine {
         should_respond: true,
         reason: "Direct question detected",
         confidence: 0.7,
+      };
+    }
+
+    // Check if agent was part of recent conversation context
+    if (recentContext.toLowerCase().includes(agentNameLower)) {
+      return {
+        should_respond: true,
+        reason: "Agent was part of recent conversation",
+        confidence: 0.5,
       };
     }
 

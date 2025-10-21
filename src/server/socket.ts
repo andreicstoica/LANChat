@@ -38,12 +38,12 @@ export function setupSocketIO(
           peerId: sanitizedUsername,
         };
         agents.set(socket.id, agent);
-        const agent_peer = await honcho.peer(sanitizedUsername, { config: { observe_me: false } });
+        const agent_peer = await honcho.peer(sanitizedUsername, { config: { observe_me: true, observe_others: true } });
         const session = getSession();
-        await session.addPeers([[agent_peer, new SessionPeerConfig(false, true)]]);
-        print(`agent registered: ${username}`, "green");
+        await session.addPeers([[agent_peer, new SessionPeerConfig(true, true)]]);
+        print(`agent registered: ${username} (peer: ${sanitizedUsername})`, "green");
       } else {
-        const user_peer = await honcho.peer(sanitizedUsername);
+        const user_peer = await honcho.peer(sanitizedUsername, { config: { observe_me: true, observe_others: true } });
         // get the user's existing config if it exists
         const config = await user_peer.getPeerConfig() as Record<string, boolean>;
         const user: User = {
@@ -55,13 +55,14 @@ export function setupSocketIO(
           peerId: sanitizedUsername,
         };
         const session = getSession();
-        await session.addPeers([user_peer]);
-        print(`user registered: ${username}`, "green");
+        await session.addPeers([[user_peer, new SessionPeerConfig(true, true)]]);
+        print(`user registered: ${username} (peer: ${sanitizedUsername})`, "green");
         connectedUsers.set(socket.id, user);
       }
 
       socket.emit("history", chatHistory.slice(-50));
       socket.emit("session_id", getSession().id);
+      socket.emit("workspace_info", { workspaceId: honcho.workspaceId });
 
       const joinMessage = createMessage({
         type: MessageType.JOIN,
@@ -277,6 +278,7 @@ async function broadcastMessage(
       const peer = await honcho.peer(peerId);
       const session = getSession();
       await session.addMessages([peer.message(message.content)]);
+      print(`Message added to Honcho: ${message.username} -> ${peerId}`, "cyan");
     } catch (error) {
       console.error(`Failed to add message to Honcho session: ${error}`);
       // Continue even if Honcho fails - don't break the chat

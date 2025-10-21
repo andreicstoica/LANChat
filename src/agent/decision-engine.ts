@@ -37,13 +37,20 @@ Respond with a JSON object with this exact format:
  "confidence": 0.0 to 1.0
 }
 
-Consider:
-- Is the message directed at you or clearly mentioning you?
-- Is it a question that genuinely needs your answer?
-- Would your reply add new, useful information for the group?
-- Have you already spoken in the last few turns?
+STRICT CRITERIA - ONLY respond if:
+- The message directly mentions your name (${this.agentName}) or @mentions you
+- It's a direct question specifically asking for your expertise
+- You're explicitly called upon to participate
+- The message is clearly addressed to you personally
 
-Default to staying quiet unless you can provide clear value. Prioritize helping human participants over debating other agents.
+DO NOT respond if:
+- The message is general discussion or world-building
+- Other agents are already handling the topic
+- You haven't been directly addressed
+- The conversation is moving along without you
+- It's just descriptive text or scene-setting
+
+Default to staying quiet. Be very selective - most messages should result in "should_respond": false.
 
 Return ONLY the JSON object. Do not include explanations, prefixes, or suffixes.
 

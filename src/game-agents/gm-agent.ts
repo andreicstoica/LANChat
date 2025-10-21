@@ -41,6 +41,8 @@ Style:
 - Reward creative coding solutions and good practices
 - Keep the development story flowing
 
+CRITICAL: Keep responses SHORT and CONCISE. Maximum 2-3 sentences. Be engaging but brief.
+
 You have access to player psychology analysis - use it to tailor the story to each player's preferences and playstyle.
 
 Remember: You are the narrator, not a character. Guide the story, don't participate in it.`;
@@ -49,7 +51,7 @@ Remember: You are the narrator, not a character. Guide the story, don't particip
 
         // GM should be more selective about when to respond
         this.temperature = 0.8;
-        this.responseLength = 150;
+        this.responseLength = 100;
 
         // Initialize levels
         this.levels = [

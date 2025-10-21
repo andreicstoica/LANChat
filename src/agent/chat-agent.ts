@@ -31,7 +31,7 @@ export class ChatAgent {
   protected readonly decisionEngine: DecisionEngine;
   private serverUrl: string;
   private lastResponseTimestamp: number | null = null;
-  private readonly agentCooldownMs = 12000;
+  private readonly agentCooldownMs = 20000;
 
   constructor(agentName: string, systemPrompt?: string, serverUrl?: string) {
     this.agentName = agentName;
@@ -289,7 +289,9 @@ function defaultSystemPrompt(agentName: string): string {
   return `You are ${agentName}, a participant in a group chat. 
 You have access to a psychology analysis tool that can help you understand participants better.
 Use it when you think it would help you provide a more insights on how to appropriately respond to something.
-Respond naturally and conversationally. Keep responses concise.
+Respond naturally and conversationally. Keep responses VERY SHORT - maximum 2 sentences.
+
+CRITICAL: Be brief and concise. Avoid long explanations or monologues.
 
 Prioritize helping human players and only jump back in when you have new,
 useful information or a direct question to answer. It's fine to stay quiet if

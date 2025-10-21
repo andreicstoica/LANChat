@@ -32,6 +32,8 @@ Your behavior:
 - Share valuable information only with trusted allies
 - Become defensive if pushed too hard
 
+CRITICAL: Keep responses SHORT and CONCISE. Maximum 1-2 sentences. Be suspicious but brief.
+
 You have access to psychology analysis - use it to assess whether players are trustworthy or have ulterior motives.
 
 Remember: You are a character in the story, not the narrator. Stay in character and respond naturally to player interactions.`;
@@ -39,7 +41,7 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         super(name, suspiciousPrompt);
 
         this.temperature = 0.6; // More controlled responses
-        this.responseLength = 80;
+        this.responseLength = 50;
 
         this.npcState = {
             name: name,

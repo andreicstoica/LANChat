@@ -23,7 +23,7 @@ export class AgentContextManager {
 
     const context = await session.getContext({
       summary: true,
-      tokens: 5000,
+      tokens: 1000,
       lastUserMessage: message.content,
       peerTarget: sanitizedSender,
       peerPerspective: this.agentPeerId,

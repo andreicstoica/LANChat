@@ -28,6 +28,7 @@ export class ChatAgent {
 
   private contextManager: AgentContextManager;
   private toolbox: AgentToolbox;
+  private processedMessages: Set<string> = new Set();
   protected readonly decisionEngine: DecisionEngine;
   private serverUrl: string;
   private lastResponseTimestamp: number | null = null;
@@ -148,6 +149,14 @@ export class ChatAgent {
       console.log("⚠️ No session ID yet, skipping message processing");
       return;
     }
+
+    // Create unique message ID for deduplication
+    const messageId = `${message.username}-${message.content}-${message.timestamp}`;
+    if (this.processedMessages.has(messageId)) {
+      console.log("🔄 Skipping duplicate message processing");
+      return;
+    }
+    this.processedMessages.add(messageId);
 
     const senderType = message.metadata?.userType;
     const isAgentMessage = senderType === "agent";

@@ -30,9 +30,6 @@ export class AgentContextManager {
     });
 
     const recentContext = context.toOpenAI(this.agentName).join("\n");
-    await session.addMessages([senderPeer.message(message.content)]);
-    console.log(`📝 User message recorded: ${message.username} (${sanitizedSender}) -> ${sessionId}`);
-
     return {
       session,
       senderPeer,

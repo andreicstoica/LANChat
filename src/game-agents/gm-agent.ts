@@ -33,6 +33,7 @@ Your role:
 - Track quest progress and learning milestones
 - Create engaging technical challenges and code reviews
 - Respond to player actions with realistic consequences
+- ALWAYS respond to player greetings to start the game narrative
 
 Style:
 - Be descriptive about the development environment
@@ -40,6 +41,7 @@ Style:
 - Create technical tension and problem-solving opportunities
 - Reward creative coding solutions and good practices
 - Keep the development story flowing
+- When players greet you, immediately set the scene and introduce the current level
 
 CRITICAL: Keep responses SHORT and CONCISE. Maximum 2-3 sentences. Be engaging but brief.
 
@@ -132,6 +134,12 @@ What brings you to this development environment today? Are you seeking to learn 
     private checkGameTriggers(content: string): string | null {
         const lowerContent = content.toLowerCase();
 
+        // Greeting triggers - GM should respond to player greetings
+        if (lowerContent.includes("hello") || lowerContent.includes("hi") ||
+            lowerContent.includes("hey") || lowerContent.includes("greetings")) {
+            return "player_greeting";
+        }
+
         // Scene/action triggers
         if (lowerContent.includes("look around") || lowerContent.includes("examine")) {
             return "player_examination";
@@ -158,13 +166,19 @@ What brings you to this development environment today? Are you seeking to learn 
         tracker: Record<string, any>
     ): Promise<void> {
         try {
-            // Check if we should respond using the parent class decision logic
-            const decision = await this.decisionEngine.shouldRespond(message, recentContext);
-            console.log(`🤔 ${this.agentName} decision: ${decision.should_respond ? "Yes" : "No"} - ${decision.reason}`);
+            // GM should be more proactive - check for game triggers first
+            const gameTrigger = this.checkGameTriggers(message.content);
+            if (gameTrigger) {
+                console.log(`🎮 GM responding to game trigger: ${gameTrigger}`);
+            } else {
+                // For non-trigger messages, use decision logic but be more lenient for GM
+                const decision = await this.decisionEngine.shouldRespond(message, recentContext);
+                console.log(`🤔 ${this.agentName} decision: ${decision.should_respond ? "Yes" : "No"} - ${decision.reason}`);
 
-            if (!decision.should_respond) {
-                console.log(`🚫 ${this.agentName} skipping response due to decision`);
-                return;
+                if (!decision.should_respond) {
+                    console.log(`🚫 ${this.agentName} skipping response due to decision`);
+                    return;
+                }
             }
 
             console.log(`🎭 GM generating narrative response...`);

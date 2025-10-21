@@ -22,7 +22,7 @@ async function startServer() {
   const honcho = new Honcho({
     baseURL: process.env.HONCHO_BASE_URL || "http://localhost:8000",
     apiKey: process.env.HONCHO_API_KEY,
-    workspaceId: process.env.HONCHO_WORKSPACE_ID || "default",
+    workspaceId: process.env.HONCHO_WORKSPACE_ID || "lanchat-dev",
   });
 
   // Create or use existing session
@@ -96,6 +96,7 @@ async function startServer() {
 
     try {
       const currentSession = session;
+      const currentWorkspaceId = honcho.workspaceId;
 
       // Disconnect all sockets and clear state
       if (io) {
@@ -113,18 +114,28 @@ async function startServer() {
       chatHistory.length = 0;
       resetGameState();
 
-      try {
-        await currentSession.delete();
-        print("🧹 Deleted previous Honcho session", "cyan");
-      } catch (error) {
-        print(`⚠️  Failed to delete Honcho session (continuing): ${error}`, "yellow");
-      }
+      // Create new workspace for fresh restart
+      const newWorkspaceId = `lanchat-${Date.now()}`;
+      const newHoncho = new Honcho({
+        baseURL: process.env.HONCHO_BASE_URL || "http://localhost:8000",
+        apiKey: process.env.HONCHO_API_KEY,
+        workspaceId: newWorkspaceId,
+      });
 
       const newSessionId = `groupchat-${Date.now()}`;
-      session = await honcho.session(newSessionId);
+      session = await newHoncho.session(newSessionId);
 
-      print(`✅ Restart complete. New honcho session: ${session.id}`, "green");
-      return { sessionId: session.id };
+      // Update the honcho instance used by socket handlers
+      Object.assign(honcho, newHoncho);
+
+      // Notify all connected clients about the new workspace
+      if (io) {
+        io.emit("workspace_info", { workspaceId: newWorkspaceId });
+        io.emit("session_id", session.id);
+      }
+
+      print(`✅ Restart complete. New workspace: ${newWorkspaceId}, session: ${session.id}`, "green");
+      return { sessionId: session.id, workspaceId: newWorkspaceId };
     } finally {
       isRestarting = false;
     }

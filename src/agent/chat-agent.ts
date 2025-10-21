@@ -20,14 +20,14 @@ export class ChatAgent {
   protected readonly agentName: string;
   protected readonly agentPeerId: string;
   protected readonly llm: LLMProvider;
-  protected readonly honcho: Honcho;
+  protected honcho: Honcho;
   protected readonly systemPrompt: string;
   protected temperature = 0.7;
   protected responseLength = 100;
   protected sessionId: string | null = null;
 
-  private readonly contextManager: AgentContextManager;
-  private readonly toolbox: AgentToolbox;
+  private contextManager: AgentContextManager;
+  private toolbox: AgentToolbox;
   protected readonly decisionEngine: DecisionEngine;
   private serverUrl: string;
   private lastResponseTimestamp: number | null = null;
@@ -39,7 +39,7 @@ export class ChatAgent {
     this.llm = getLLMProvider();
     this.serverUrl = serverUrl || Bun.env.CHAT_SERVER || "http://localhost:3000";
 
-    const workspaceId = createWorkspaceId(agentName);
+    const workspaceId = process.env.HONCHO_WORKSPACE_ID || "lanchat-dev";
     this.honcho = new Honcho({
       baseURL: process.env.HONCHO_BASE_URL || "http://localhost:8000",
       apiKey: process.env.HONCHO_API_KEY,
@@ -115,6 +115,25 @@ export class ChatAgent {
 
     this.socket.on("session_id", (sessionId: string) => {
       this.sessionId = sessionId;
+    });
+
+    this.socket.on("workspace_info", async (data: { workspaceId: string }) => {
+      console.log(`🔄 ${this.agentName} workspace updated: ${data.workspaceId}`);
+      // Update the honcho instance with new workspace
+      this.honcho = new Honcho({
+        baseURL: process.env.HONCHO_BASE_URL || "http://localhost:8000",
+        apiKey: process.env.HONCHO_API_KEY,
+        workspaceId: data.workspaceId,
+      });
+
+      // Update context manager and toolbox with new honcho instance
+      this.contextManager = new AgentContextManager(
+        this.honcho,
+        this.agentName,
+        this.agentPeerId,
+      );
+      this.toolbox = new AgentToolbox(this.llm, this.honcho, this.agentName);
+      console.log(`✅ ${this.agentName} updated to workspace: ${data.workspaceId}`);
     });
   }
 

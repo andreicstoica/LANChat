@@ -1,6 +1,4 @@
-import type { Honcho } from "@honcho-ai/sdk";
-import type { Session } from "@honcho-ai/sdk/dist/session";
-import type { Peer } from "@honcho-ai/sdk/dist/peer";
+import type { Honcho, Session, Peer } from "@honcho-ai/sdk";
 import type { Message } from "../types.ts";
 import { sanitizeUsername } from "./utils.ts";
 
@@ -16,7 +14,7 @@ export class AgentContextManager {
     private readonly honcho: Honcho,
     private readonly agentName: string,
     private readonly agentPeerId: string,
-  ) {}
+  ) { }
 
   async prepareContext(sessionId: string, message: Message): Promise<ContextResult> {
     const sanitizedSender = sanitizeUsername(message.username);
@@ -33,6 +31,7 @@ export class AgentContextManager {
 
     const recentContext = context.toOpenAI(this.agentName).join("\n");
     await session.addMessages([senderPeer.message(message.content)]);
+    console.log(`📝 User message recorded: ${message.username} (${sanitizedSender}) -> ${sessionId}`);
 
     return {
       session,
@@ -46,5 +45,6 @@ export class AgentContextManager {
     const session = await this.honcho.session(sessionId);
     const agentPeer = await this.honcho.peer(this.agentPeerId);
     await session.addMessages([agentPeer.message(content)]);
+    console.log(`📝 Agent message recorded: ${this.agentName} (${this.agentPeerId}) -> ${sessionId}`);
   }
 }

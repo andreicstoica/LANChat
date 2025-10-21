@@ -7,6 +7,7 @@ export interface ContextResult {
   senderPeer: Peer;
   recentContext: string;
   sanitizedSender: string;
+  summary: string | null;
 }
 
 export class AgentContextManager {
@@ -31,12 +32,45 @@ export class AgentContextManager {
       peerPerspective: this.agentPeerId,
     });
 
-    const recentContext = context.toOpenAI(this.agentName).join("\n");
+    const openAIContext = context.toOpenAI(this.agentPeerId);
+    const summary = context.summary?.content ?? null;
+    const peerRepresentation = context.peerRepresentation ?? null;
+    const peerCard = Array.isArray(context.peerCard) ? context.peerCard : null;
+
+    const transcript = openAIContext
+      .filter((entry) => entry.role !== "system")
+      .map((entry) => {
+        const speaker = entry.role === "assistant"
+          ? this.agentName
+          : entry.name ?? entry.role;
+        return `${speaker}: ${entry.content}`;
+      })
+      .join("\n");
+
+    const systemSections: string[] = [];
+    if (summary?.trim()) {
+      systemSections.push(`Conversation Summary:\n${summary.trim()}`);
+    }
+    if (peerRepresentation?.trim()) {
+      systemSections.push(`Peer Representation (${this.agentName}'s perspective):\n${peerRepresentation.trim()}`);
+    }
+    if (peerCard && peerCard.length > 0) {
+      systemSections.push(`Peer Card Details:\n${peerCard.join("\n")}`);
+    }
+
+    const recentContext = [
+      ...systemSections,
+      transcript ? `Recent Transcript:\n${transcript}` : null,
+    ]
+      .filter((section): section is string => Boolean(section))
+      .join("\n\n") || "No prior context available.";
+
     return {
       session,
       senderPeer,
       recentContext,
       sanitizedSender,
+      summary,
     };
   }
 

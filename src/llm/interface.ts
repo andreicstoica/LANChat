@@ -21,6 +21,7 @@ export interface LLMGenerateOptions {
 }
 
 export interface LLMProvider {
+    [x: string]: any;
     generate(prompt: string, options?: LLMGenerateOptions): Promise<LLMResponse>;
     chat(messages: LLMMessage[], options?: LLMGenerateOptions): Promise<LLMResponse>;
 }

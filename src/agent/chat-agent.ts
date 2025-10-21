@@ -185,6 +185,7 @@ export class ChatAgent {
       const decision = await this.decisionEngine.shouldRespond(
         message,
         contextResult.recentContext,
+        contextResult.summary,
       );
 
       console.log(
@@ -220,6 +221,7 @@ export class ChatAgent {
         },
         generateResponse: (decisionTracker) =>
           this.generateResponse(message, contextResult.recentContext, decisionTracker),
+        summary: contextResult.summary,
       });
     } catch (error) {
       console.error(

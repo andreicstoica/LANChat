@@ -112,59 +112,157 @@ async function startServer() {
 
   setupSocketIO(io, connectedUsers, agents, chatHistory, honcho, session);
 
-  // Start game agents if in game mode
-  if (gameFlag) {
-    print("🎲 Starting D&D game mode...", "magenta");
-    startGameAgents();
-  }
-
   // Start server
   print("starting LAN chat server...", "blue");
   server.listen(PORT, () => {
     print(`server listening on port ${PORT}`, "green");
     displayStartupInfo(PORT);
+
+    // Start game agents after the server is ready
+    if (gameFlag) {
+      print("🎲 Starting D&D game mode...", "magenta");
+      print("💡 Press Ctrl+C to stop all processes gracefully", "cyan");
+      startGameAgents();
+    }
   });
 }
+
+// Track all spawned processes for cleanup
+const spawnedProcesses: any[] = [];
+let isShuttingDown = false;
 
 // Function to start game agents
 function startGameAgents() {
   const serverUrl = `http://localhost:${process.env.PORT || "3000"}`;
 
-  // Start GM agent
-  const gmProcess = spawn("bun", ["run", "src/game-agents/gm-agent.ts", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
+  const agentConfigs = [
+    { name: "GM", script: "src/game-agents/gm-agent.ts", args: [`--server=${serverUrl}`] },
+    { name: "Elderwyn (friendly)", script: "src/game-agents/friendly-npc-agent.ts", args: ["Elderwyn", `--server=${serverUrl}`] },
+    { name: "Thorne (suspicious)", script: "src/game-agents/suspicious-npc-agent.ts", args: ["Thorne", `--server=${serverUrl}`] },
+    { name: "Grimjaw (hostile)", script: "src/game-agents/hostile-npc-agent.ts", args: ["Grimjaw", `--server=${serverUrl}`] }
+  ];
 
-  // Start friendly NPC
-  const friendlyProcess = spawn("bun", ["run", "src/game-agents/friendly-npc-agent.ts", "Elderwyn", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
+  agentConfigs.forEach((config, index) => {
+    const childProcess = spawn("bun", ["run", config.script, ...config.args], {
+      stdio: "inherit",
+      cwd: process.cwd(),
+      detached: false
+    });
 
-  // Start suspicious NPC
-  const suspiciousProcess = spawn("bun", ["run", "src/game-agents/suspicious-npc-agent.ts", "Thorne", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
+    // Add process metadata
+    (childProcess as any).agentName = config.name;
+    (childProcess as any).agentIndex = index;
 
-  // Start hostile NPC
-  const hostileProcess = spawn("bun", ["run", "src/game-agents/hostile-npc-agent.ts", "Grimjaw", `--server=${serverUrl}`], {
-    stdio: "inherit",
-    cwd: process.cwd()
-  });
+    spawnedProcesses.push(childProcess);
 
-  // Handle process cleanup
-  process.on("SIGINT", () => {
-    print("🎲 Shutting down game agents...", "yellow");
-    gmProcess.kill();
-    friendlyProcess.kill();
-    suspiciousProcess.kill();
-    hostileProcess.kill();
+    // Handle process exit
+    childProcess.on('exit', (code: number | null, signal: string | null) => {
+      if (!isShuttingDown) {
+        print(`⚠️  ${config.name} agent exited with code ${code} (signal: ${signal})`, "yellow");
+      }
+    });
+
+    childProcess.on('error', (error: Error) => {
+      if (!isShuttingDown) {
+        print(`❌ Error starting ${config.name} agent: ${error.message}`, "red");
+      }
+    });
   });
 
   print("🎲 Game agents started: GM, Elderwyn (friendly), Thorne (suspicious), Grimjaw (hostile)", "green");
+
+  // Monitor process health
+  setInterval(() => {
+    if (!isShuttingDown) {
+      const deadProcesses = spawnedProcesses.filter(proc => proc.killed);
+      if (deadProcesses.length > 0) {
+        print(`⚠️  ${deadProcesses.length} game agent(s) have died. Consider restarting.`, "yellow");
+      }
+    }
+  }, 10000); // Check every 10 seconds
 }
 
-startServer().catch(console.error);
+// Comprehensive cleanup handler for all processes
+function setupCleanupHandlers() {
+  const cleanup = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
 
+    print("\n🛑 Shutting down all processes...", "yellow");
+
+    // Create cleanup promises for all processes
+    const cleanupPromises = spawnedProcesses.map(async (proc, index) => {
+      if (proc && !proc.killed) {
+        const agentName = (proc as any).agentName || `Process ${index + 1}`;
+        print(`🔄 Stopping ${agentName}...`, "cyan");
+
+        try {
+          // Try graceful shutdown first
+          proc.kill("SIGTERM");
+
+          // Wait for graceful shutdown
+          await new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+              if (!proc.killed) {
+                print(`⚡ Force killing ${agentName}...`, "red");
+                proc.kill("SIGKILL");
+              }
+              resolve(true);
+            }, 1500);
+
+            proc.on('exit', () => {
+              clearTimeout(timeout);
+              resolve(true);
+            });
+          });
+
+          print(`✅ ${agentName} stopped`, "green");
+        } catch (error) {
+          print(`❌ Error stopping ${agentName}: ${error}`, "red");
+        }
+      }
+    });
+
+    // Wait for all processes to be cleaned up
+    await Promise.all(cleanupPromises);
+
+    // Additional cleanup: kill any remaining bun processes related to the game
+    try {
+      const { exec } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
+
+      // Kill any remaining game-related processes
+      await execAsync("pkill -f 'bun.*src/game-agents' || true");
+      await execAsync("pkill -f 'bun.*src/server.*--game' || true");
+    } catch (error) {
+      // Ignore errors in system cleanup
+    }
+
+    print("🎯 All processes terminated. Goodbye!", "green");
+    process.exit(0);
+  };
+
+  // Handle Ctrl+C (SIGINT)
+  process.on("SIGINT", cleanup);
+
+  // Handle termination signals
+  process.on("SIGTERM", cleanup);
+
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    print(`💥 Uncaught exception: ${error.message}`, "red");
+    cleanup();
+  });
+
+  // Handle unhandled promise rejections
+  process.on("unhandledRejection", (reason, promise) => {
+    print(`💥 Unhandled rejection: ${reason}`, "red");
+    cleanup();
+  });
+}
+
+// Setup cleanup handlers
+setupCleanupHandlers();
+
+startServer().catch(console.error);

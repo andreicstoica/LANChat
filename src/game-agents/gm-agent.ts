@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { ChatAgent } from "../agent.js";
-import type { GameState, Quest } from "../types.js";
+import { ChatAgent } from "../agent.ts";
+import type { GameState, Quest } from "../types.ts";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -14,9 +14,11 @@ class GameMasterAgent extends ChatAgent {
     private gameState: GameState;
     private currentScene: string;
     private activeQuests: Quest[];
+    private introductionSent: boolean = false;
 
     constructor() {
-        const gmPrompt = `You are Honcho the GM, the master storyteller of this D&D adventure!
+        const agentName = "Honcho the GM";
+        const gmPrompt = `You are ${agentName}, the master storyteller of this D&D adventure!
 
 Your role:
 - Narrate the story and describe scenes vividly
@@ -36,7 +38,7 @@ You have access to player psychology analysis - use it to tailor the story to ea
 
 Remember: You are the narrator, not a character. Guide the story, don't participate in it.`;
 
-        super("Honcho the GM", gmPrompt);
+        super(agentName, gmPrompt);
 
         // GM should be more selective about when to respond
         this.temperature = 0.8;
@@ -58,10 +60,18 @@ Remember: You are the narrator, not a character. Guide the story, don't particip
         console.log(`🎲 Honcho the GM is preparing the adventure at ${SERVER_URL}...`);
         await super.connect();
 
-        // Send initial scene description
-        setTimeout(() => {
-            this.introduceScene();
-        }, 2000);
+        if (this.socket) {
+            this.socket.on("message", (message: any) => {
+                if (
+                    !this.introductionSent &&
+                    message.type === "join" &&
+                    message.metadata?.userType === "human"
+                ) {
+                    this.introductionSent = true;
+                    this.introduceScene();
+                }
+            });
+        }
     }
 
     private async introduceScene(): Promise<void> {

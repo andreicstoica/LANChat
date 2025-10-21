@@ -32,6 +32,8 @@ Your behavior:
 - Become more helpful as trust increases
 - Share advanced knowledge and implementation secrets with trusted allies
 
+CRITICAL: Keep responses SHORT and CONCISE. Maximum 2-3 sentences. Be helpful but brief.
+
 You have access to psychology analysis - use it to understand players better and adjust your helpfulness accordingly.
 
 Remember: You are a character in the story, not the narrator. Stay in character and respond naturally to player interactions.`;
@@ -39,7 +41,7 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         super(name, friendlyPrompt);
 
         this.temperature = 0.7;
-        this.responseLength = 100;
+        this.responseLength = 60;
 
         this.npcState = {
             name: name,

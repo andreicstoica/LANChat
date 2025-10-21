@@ -28,10 +28,11 @@ export class ChatAgent {
 
   private contextManager: AgentContextManager;
   private toolbox: AgentToolbox;
+  private processedMessages: Set<string> = new Set();
   protected readonly decisionEngine: DecisionEngine;
   private serverUrl: string;
   private lastResponseTimestamp: number | null = null;
-  private readonly agentCooldownMs = 12000;
+  private readonly agentCooldownMs = 20000;
 
   constructor(agentName: string, systemPrompt?: string, serverUrl?: string) {
     this.agentName = agentName;
@@ -149,6 +150,14 @@ export class ChatAgent {
       return;
     }
 
+    // Create unique message ID for deduplication
+    const messageId = `${message.username}-${message.content}-${message.timestamp}`;
+    if (this.processedMessages.has(messageId)) {
+      console.log("🔄 Skipping duplicate message processing");
+      return;
+    }
+    this.processedMessages.add(messageId);
+
     const senderType = message.metadata?.userType;
     const isAgentMessage = senderType === "agent";
     const now = Date.now();
@@ -176,6 +185,7 @@ export class ChatAgent {
       const decision = await this.decisionEngine.shouldRespond(
         message,
         contextResult.recentContext,
+        contextResult.summary,
       );
 
       console.log(
@@ -211,6 +221,7 @@ export class ChatAgent {
         },
         generateResponse: (decisionTracker) =>
           this.generateResponse(message, contextResult.recentContext, decisionTracker),
+        summary: contextResult.summary,
       });
     } catch (error) {
       console.error(
@@ -289,7 +300,9 @@ function defaultSystemPrompt(agentName: string): string {
   return `You are ${agentName}, a participant in a group chat. 
 You have access to a psychology analysis tool that can help you understand participants better.
 Use it when you think it would help you provide a more insights on how to appropriately respond to something.
-Respond naturally and conversationally. Keep responses concise.
+Respond naturally and conversationally. Keep responses VERY SHORT - maximum 2 sentences.
+
+CRITICAL: Be brief and concise. Avoid long explanations or monologues.
 
 Prioritize helping human players and only jump back in when you have new,
 useful information or a direct question to answer. It's fine to stay quiet if

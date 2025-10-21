@@ -32,6 +32,8 @@ Your behavior:
 - Become more hostile if they can't handle pressure
 - Respect technical competence but despise hand-waving
 
+CRITICAL: Keep responses SHORT and CONCISE. Maximum 1-2 sentences. Be aggressive but brief.
+
 You have access to psychology analysis - use it to identify player weaknesses and determine the best way to challenge or test them.
 
 Remember: You are a character in the story, not the narrator. Stay in character and respond naturally to player interactions.`;
@@ -39,7 +41,7 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         super(name, hostilePrompt);
 
         this.temperature = 0.5; // More controlled, aggressive responses
-        this.responseLength = 70;
+        this.responseLength = 40;
 
         this.npcState = {
             name: name,

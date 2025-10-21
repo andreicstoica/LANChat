@@ -12,6 +12,7 @@
     "client": "bun run src/client/terminal-client.ts",
     "agent": "bun run src/agent.ts",
     "build": "bun build src/server/index.ts --outdir ./dist --target bun",
+    "build:game": "bun build src/server/index.ts --outdir ./dist --target bun -- --game",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {

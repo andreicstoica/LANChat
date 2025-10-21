@@ -14,6 +14,7 @@ interface DecisionContext {
   tracker: Record<string, any>;
   tools: ToolHandlers;
   generateResponse: (tracker: Record<string, any>) => Promise<void>;
+  summary?: string | null;
 }
 
 export class DecisionEngine {
@@ -22,131 +23,161 @@ export class DecisionEngine {
     private readonly agentName: string,
   ) { }
 
-  async shouldRespond(message: Message, recentContext: string): Promise<ResponseDecision> {
-    const prompt = `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should respond.
+  async shouldRespond(
+    message: Message,
+    recentContext: string,
+    summary?: string | null,
+  ): Promise<ResponseDecision> {
+    // Use LLM with proper schema to make intelligent decisions about when to respond
+    const summarySection = summary && summary.trim().length > 0
+      ? summary.trim()
+      : "No summary available.";
+    const transcriptSection = recentContext && recentContext.trim().length > 0
+      ? recentContext.trim()
+      : "No recent transcript available.";
+    const senderType = message.metadata?.userType ?? "unknown";
+    const prompt = `You are ${this.agentName}, a character in a roleplay game. Analyze if you should respond to this message.
 
-Recent conversation, summary, and/or peer information:
-${recentContext}
+Conversation summary:
+${summarySection}
 
-Latest message from ${message.username}: "${message.content}"
+Recent conversation transcript:
+${transcriptSection}
 
-Respond with a JSON object with this exact format:
-{
-  "should_respond": true or false,
-  "reason": "brief explanation",
- "confidence": 0.0 to 1.0
-}
+New message from ${message.username}: "${message.content}"
+Sender type: ${senderType}
 
-Consider:
-- Is the message directed at you or clearly mentioning you?
-- Is it a question that genuinely needs your answer?
-- Would your reply add new, useful information for the group?
-- Have you already spoken in the last few turns?
+Should you respond? Consider:
+1. Are you directly mentioned by name?
+2. Are you being asked a question?
+3. Is the message responding to something you said?
+4. Is the message relevant to your role and expertise?
+5. Would it be natural for you to contribute to this conversation?
+6. Only respond to other agents if they explicitly ask for your input or coordination is required.`;
 
-Default to staying quiet unless you can provide clear value. Prioritize helping human participants over debating other agents.
+    try {
+      const response = await this.llm.chat([
+        { role: "system", content: "You are a decision-making assistant. Always respond with valid JSON matching the required schema." },
+        { role: "user", content: prompt }
+      ], {
+        format: "json",
+        temperature: 0.3,
+        responseFormat: shouldRespondSchema(),
+      });
 
-Return ONLY the JSON object. Do not include explanations, prefixes, or suffixes.
+      const parsed = JSON.parse(response.content);
 
-JSON response:`;
+      // Validate the response structure
+      if (typeof parsed.should_respond === 'boolean' &&
+        typeof parsed.reason === 'string' &&
+        typeof parsed.confidence === 'number') {
+        return {
+          should_respond: parsed.should_respond,
+          reason: parsed.reason,
+          confidence: Math.max(0.0, Math.min(1.0, parsed.confidence))
+        };
+      }
+    } catch (error) {
+      console.error(`Error in LLM decision for ${this.agentName}:`, error);
+    }
 
-    const response = await this.llm.generate(prompt, {
-      temperature: 0.3,
-      max_tokens: 200,
-      responseFormat: shouldRespondSchema(),
-    });
+    // Fallback to simple heuristics if LLM fails
+    const content = message.content.toLowerCase();
+    const agentNameLower = this.agentName.toLowerCase();
 
-    const decision = safeParse<ResponseDecision>(response.content, "should-respond decision");
-    if (!decision) {
-      console.warn("Invalid should-respond output, defaulting to respond:", response.content);
+    if (content.includes(agentNameLower) || content.includes(`@${agentNameLower}`)) {
       return {
         should_respond: true,
-        reason: "Fallback: invalid decision JSON",
-        confidence: 0.1,
+        reason: "Directly mentioned by name (fallback)",
+        confidence: 0.9,
       };
     }
 
-    return decision;
+    return {
+      should_respond: false,
+      reason: "No clear reason to respond (fallback)",
+      confidence: 0.5,
+    };
   }
 
   async planResponse(context: DecisionContext): Promise<void> {
     const tracker = context.tracker;
-    let iterations = 0;
+    const summarySection = context.summary && context.summary.trim().length > 0
+      ? context.summary.trim()
+      : "No summary available.";
+    const transcriptSection = context.recentContext && context.recentContext.trim().length > 0
+      ? context.recentContext.trim()
+      : "No recent transcript available.";
 
-    while (iterations < 3) {
-      iterations += 1;
+    // Use LLM to decide what tools to use before responding
+    const prompt = `You are ${this.agentName}. Review the Honcho-provided summary and transcript, then decide what actions to take before responding.
 
-      const prompt = `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should use one of your tools before responding, or respond directly.
+Conversation summary:
+${summarySection}
 
-Recent conversation, summary, and/or peer information:
-${context.recentContext}
+Recent transcript:
+${transcriptSection}
 
-Latest message from ${context.message.username}: "${context.message.content}"
+New message: "${context.message.content}"
 
-You have 3 different tools you can use to gather more context before responding. They are
+Available tools:
+1. analyzePsychology - Analyze the psychology/motivation of another character
+2. search - Search for information in the conversation history
 
-1. Analyze the psychology - This lets you ask a question to a model of an agent to better understand them and learn how to respond appropriately
+Guidelines:
+- Use search when the summary or transcript lacks the detail you need.
+- Use psychology when understanding motivations or relationships would help craft the response.
+- Only respond directly when you are confident you have enough context.
 
-2. Search for additional context - This lets you search the conversation history with a query 
+Choose your action and provide reasoning.`;
 
-3. Respond directly - This lets you respond directly to the user
-
-Respond with a JSON object with this exact format:
-{
- "decision": psychology or search or respond,
-  "reason": "brief explanation",
-  "confidence": 0.0 to 1.0
-}
-
-Return ONLY this JSON object. Use the lowercase words "psychology", "search", or "respond" for the decision value. Do not include explanations or any text outside the braces.
-
-JSON response:`;
-
-      const response = await this.llm.generate(prompt, {
+    try {
+      const response = await this.llm.chat([
+        { role: "system", content: "You are a decision-making assistant. Always respond with valid JSON matching the required schema." },
+        { role: "user", content: prompt }
+      ], {
+        format: "json",
         temperature: 0.3,
-        max_tokens: 200,
         responseFormat: actionDecisionSchema(),
       });
 
-      const decision = safeParse<AgentDecision>(response.content, "action decision");
-      const decisionType = normalizeDecision(decision?.decision);
+      const parsed = safeParse<AgentDecision>(response.content, `${this.agentName} tool decision`);
 
-      if (!decision || decisionType === "unknown") {
-        console.warn("Invalid or unrecognized decision, defaulting to direct response:", response?.content);
-        break;
-      }
+      if (parsed) {
+        const rawDecision = typeof parsed.decision === "string" ? parsed.decision.trim() : "";
+        const rawReason = typeof parsed.reason === "string" ? parsed.reason.trim() : "";
 
-      if (decisionType === "psychology" && tracker["psychology"] === undefined) {
-        const psychologyResponse = await context.tools.analyzePsychology();
-        tracker["psychology"] = psychologyResponse ?? null;
-        if (psychologyResponse) {
-          continue;
-        }
-      }
+        const decisionLabel = rawDecision.length > 0 ? rawDecision : "respond";
+        const reason = rawReason.length > 0 ? rawReason : "No reason provided";
 
-      if (decisionType === "search" && tracker["search"] === undefined) {
-        const searchResponse = await context.tools.search();
-        const messages: any[] = [];
-
-        if (searchResponse && Array.isArray(searchResponse)) {
-          messages.push(...searchResponse);
-        } else if (searchResponse != null) {
-          messages.push(searchResponse);
+        if (rawDecision.length === 0 || rawReason.length === 0) {
+          console.warn(`⚠️ ${this.agentName} tool decision missing fields. Raw response:`, response.content);
         }
 
-        tracker["search"] = messages.length > 0 ? messages : null;
-        if (messages.length > 0) {
-          continue;
-        }
-      }
+        console.log(`🤔 ${this.agentName} tool decision: ${decisionLabel} - ${reason}`);
 
-      break;
+        // Execute the decided tool action
+        const decision = normalizeDecision(decisionLabel);
+        if (decision === "psychology" && context.tools.analyzePsychology) {
+          const psychologyResult = await context.tools.analyzePsychology();
+          if (psychologyResult != null) {
+            context.tracker["psychology"] = psychologyResult;
+          }
+        } else if (decision === "search" && context.tools.search) {
+          const searchResult = await context.tools.search();
+          if (searchResult != null) {
+            context.tracker["search"] = searchResult;
+          }
+        }
+      } else {
+        console.log(`🤔 ${this.agentName} tool decision: respond - Failed to parse tool decision`);
+      }
+    } catch (error) {
+      console.error(`Error in tool decision for ${this.agentName}:`, error);
+      console.log(`🤔 ${this.agentName} tool decision: respond - Skipping tool analysis due to error`);
     }
 
-    if (iterations >= 3) {
-      console.warn("Decision loop reached safety limit, defaulting to response.");
-    }
-
-    // Only generate response if we have a valid decision to respond
+    // Generate response after tool analysis
     await context.generateResponse(tracker);
   }
 }

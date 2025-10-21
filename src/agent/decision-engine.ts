@@ -38,12 +38,12 @@ Respond with a JSON object with this exact format:
 }
 
 Consider:
-- Is the message directed at you or mentioning you?
-- Is it a question that needs answering?
-- Would your response add value to the conversation?
-- Have you responded too much recently?
+- Is the message directed at you or clearly mentioning you?
+- Is it a question that genuinely needs your answer?
+- Would your reply add new, useful information for the group?
+- Have you already spoken in the last few turns?
 
-lean on the side of responding and keeping the conversation going
+Default to staying quiet unless you can provide clear value. Prioritize helping human participants over debating other agents.
 
 Return ONLY the JSON object. Do not include explanations, prefixes, or suffixes.
 

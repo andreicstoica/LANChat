@@ -30,6 +30,8 @@ export class ChatAgent {
   private readonly toolbox: AgentToolbox;
   private readonly decisionEngine: DecisionEngine;
   private serverUrl: string;
+  private lastResponseTimestamp: number | null = null;
+  private readonly agentCooldownMs = 12000;
 
   constructor(agentName: string, systemPrompt?: string, serverUrl?: string) {
     this.agentName = agentName;
@@ -115,6 +117,24 @@ export class ChatAgent {
     if (!this.sessionId) {
       console.log("⚠️ No session ID yet, skipping message processing");
       return;
+    }
+
+    const senderType = message.metadata?.userType;
+    const isAgentMessage = senderType === "agent";
+    const now = Date.now();
+
+    if (isAgentMessage) {
+      const isAddressedToMe = this.isMessageAddressed(message.content);
+
+      if (!isAddressedToMe) {
+        console.log("🤐 Skipping agent message not directed at me.");
+        return;
+      }
+
+      if (this.lastResponseTimestamp && now - this.lastResponseTimestamp < this.agentCooldownMs) {
+        console.log("⏳ Cooling down before responding to another agent.");
+        return;
+      }
     }
 
     try {
@@ -211,6 +231,8 @@ export class ChatAgent {
       if (this.sessionId) {
         await this.contextManager.recordAgentMessage(this.sessionId, responseContent);
       }
+
+      this.lastResponseTimestamp = Date.now();
     } catch (error) {
       console.error("Error generating response:", error);
     }
@@ -218,6 +240,15 @@ export class ChatAgent {
 
   protected sanitizeUsername(username: string): string {
     return sanitizeUsername(username);
+  }
+
+  private isMessageAddressed(content: string): boolean {
+    const normalized = content.toLowerCase();
+    return (
+      normalized.includes(this.agentName.toLowerCase()) ||
+      normalized.includes(this.agentPeerId.toLowerCase()) ||
+      normalized.includes(`@${this.agentPeerId.toLowerCase()}`)
+    );
   }
 }
 
@@ -227,7 +258,9 @@ You have access to a psychology analysis tool that can help you understand parti
 Use it when you think it would help you provide a more insights on how to appropriately respond to something.
 Respond naturally and conversationally. Keep responses concise.
 
-Feel empowered to be chatty and ask follow-up questions.
+Prioritize helping human players and only jump back in when you have new,
+useful information or a direct question to answer. It's fine to stay quiet if
+the conversation is moving without you.
 `;
 }
 

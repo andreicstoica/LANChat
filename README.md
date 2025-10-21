@@ -14,6 +14,7 @@ A real-time chat application built with **Bun**, **TypeScript**, and **Hono**, d
 - **Agent Data Processing**: Agents can send/receive structured data for background processing
 - **No Dependencies for Users**: LAN users can join with tools already on their system
 - **Automatic Network Detection**: Server detects available IPs and provides connection guidance
+- **Developer Game Mode**: Optional Honcho-powered NPC experience that teaches Honcho concepts through play
 
 ## Quick Start
 
@@ -119,6 +120,22 @@ bun run agent
 # Start with custom agent name
 bun run agent SmartBot
 ```
+
+### 6. Launch the Developer Game Mode
+
+```bash
+bun run start --game
+```
+
+This spins up a Honcho-powered session featuring:
+
+- **Honcho the GM** coordinating the narrative
+- **Stack** the mentor, **Lint** the skeptical reviewer, and **Merge** the antagonistic tech lead
+- Automatic level progression as players demonstrate their understanding of Honcho concepts
+
+The standard WebSockets endpoints remain available, so human users and agents can still connect with their usual tools.
+
+> For the full narrative, level objectives, and NPC behavior details, see [`GAME_MODE.md`](GAME_MODE.md).
 
 ## Message Types
 
@@ -290,6 +307,25 @@ Both netcat and terminal clients support:
                    │   & State     │
                    └───────────────┘
 ```
+
+## Developer Game Mode Overview
+
+The optional developer-themed adventure layers Honcho's memory system on top of regular LANChat sessions.
+
+- NPCs track individual relationships and adjust tone, trust, and guidance per player
+- Honcho the GM injects story beats and advances the scene once learning objectives are met
+- Works seamlessly with human users, CLI clients, and agents connected through the standard endpoints
+
+### Levels
+
+- **Level 1 – The Dev Environment**: Learn Honcho working representations with Stack and earn Lint's trust to unlock the next stage
+- **Level 2 – Production Deploy**: Apply everything you've learned under pressure; final stop for mastering Honcho concepts
+
+### Monitoring Progress
+
+- `GET /api/game/state` exposes the current level, NPC relationships, and progression status for dashboard/UX integrations
+
+Read [`GAME_MODE.md`](GAME_MODE.md) for the complete narrative, NPC profiles, and gameplay tips.
 
 ## Deployment
 

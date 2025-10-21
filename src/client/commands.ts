@@ -9,9 +9,6 @@ export interface Command {
 
 export const commands: Command[] = [
   { value: '/help', label: '/help', description: 'Show available commands' },
-  { value: '/users', label: '/users', description: 'List connected users and agents' },
-  { value: '/dialectic', label: '/dialectic <user> <query>', description: 'Query participant psychology' },
-  { value: '/observe', label: '/observe', description: 'Toggle your observation status in the session' },
   { value: '/quit', label: '/quit', description: 'Exit the chat' },
 ];
 
@@ -42,35 +39,6 @@ export class CommandHandler {
         break;
       case "/quit":
         this.onExit();
-        break;
-      case "/users":
-        this.client.getUsers((response) => {
-          if (response.error) {
-            this.addSystemMessage(`Error: ${response.error}`);
-          } else {
-            const usersList = response.users.map(u => `  ${u.username} (${u.type}) ${u.observe_me ? '(being observed)' : '(not being observed)'}`).join('\n');
-            const agentsList = response.agents.map(a => `  ${a.username} (${a.type}) [${a.capabilities.join(', ')}]`).join('\n');
-            this.addSystemMessage(`Connected Users:\n${usersList}\n\nConnected Agents:\n${agentsList}`);
-          }
-        });
-        break;
-      case "/dialectic":
-        const user = parts[1];
-        const query = parts.slice(2).join(" ");
-        if (!user || !query) {
-          this.addSystemMessage('Usage: /dialectic <user> <query>');
-          return;
-        }
-        this.client.getDialectic(user, query, (response) => {
-          this.addSystemMessage(response, 'Dialectic');
-        });
-        break;
-      case "/observe":
-        this.client.toggleObserve((response) => {
-          if (response.error) {
-            this.addSystemMessage(`Error: ${response.error}`);
-          }
-        });
         break;
       default:
         this.addSystemMessage(`Unknown command: ${cmd}. Type /help for available commands.`);

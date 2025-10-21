@@ -37,9 +37,12 @@ async function startServer() {
 
   // Game state
   const gameState: GameState = {
-    currentScene: "The Tavern",
-    activeQuests: [],
-    npcStates: new Map(),
+    currentLevel: 0,
+    levelName: "The Dev Environment",
+    playerProgress: {
+      learnedConcepts: [],
+      npcTrustLevels: {}
+    },
     gameMode: gameFlag
   };
 
@@ -137,9 +140,9 @@ function startGameAgents() {
 
   const agentConfigs = [
     { name: "GM", script: "src/game-agents/gm-agent.ts", args: [`--server=${serverUrl}`] },
-    { name: "Elderwyn (friendly)", script: "src/game-agents/friendly-npc-agent.ts", args: ["Elderwyn", `--server=${serverUrl}`] },
-    { name: "Thorne (suspicious)", script: "src/game-agents/suspicious-npc-agent.ts", args: ["Thorne", `--server=${serverUrl}`] },
-    { name: "Grimjaw (hostile)", script: "src/game-agents/hostile-npc-agent.ts", args: ["Grimjaw", `--server=${serverUrl}`] }
+    { name: "Stack (friendly)", script: "src/game-agents/friendly-npc-agent.ts", args: ["Stack", `--server=${serverUrl}`] },
+    { name: "Lint (suspicious)", script: "src/game-agents/suspicious-npc-agent.ts", args: ["Lint", `--server=${serverUrl}`] },
+    { name: "Merge (hostile)", script: "src/game-agents/hostile-npc-agent.ts", args: ["Merge", `--server=${serverUrl}`] }
   ];
 
   agentConfigs.forEach((config, index) => {
@@ -169,7 +172,7 @@ function startGameAgents() {
     });
   });
 
-  print("🎲 Game agents started: GM, Elderwyn (friendly), Thorne (suspicious), Grimjaw (hostile)", "green");
+  print("🎲 Game agents started: GM, Stack (friendly), Lint (suspicious), Merge (hostile)", "green");
 
   // Monitor process health
   setInterval(() => {

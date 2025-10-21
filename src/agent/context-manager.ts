@@ -18,8 +18,10 @@ export class AgentContextManager {
 
   async prepareContext(sessionId: string, message: Message): Promise<ContextResult> {
     const sanitizedSender = sanitizeUsername(message.username);
-    const session = await this.honcho.session(sessionId);
-    const senderPeer = await this.honcho.peer(sanitizedSender);
+    const [session, senderPeer] = await Promise.all([
+      this.honcho.session(sessionId),
+      this.honcho.peer(sanitizedSender)
+    ]);
 
     const context = await session.getContext({
       summary: true,
@@ -39,8 +41,10 @@ export class AgentContextManager {
   }
 
   async recordAgentMessage(sessionId: string, content: string): Promise<void> {
-    const session = await this.honcho.session(sessionId);
-    const agentPeer = await this.honcho.peer(this.agentPeerId);
+    const [session, agentPeer] = await Promise.all([
+      this.honcho.session(sessionId),
+      this.honcho.peer(this.agentPeerId)
+    ]);
     await session.addMessages([agentPeer.message(content)]);
     console.log(`📝 Agent message recorded: ${this.agentName} (${this.agentPeerId}) -> ${sessionId}`);
   }

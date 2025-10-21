@@ -28,7 +28,7 @@ export class ChatAgent {
 
   private readonly contextManager: AgentContextManager;
   private readonly toolbox: AgentToolbox;
-  private readonly decisionEngine: DecisionEngine;
+  protected readonly decisionEngine: DecisionEngine;
   private serverUrl: string;
   private lastResponseTimestamp: number | null = null;
   private readonly agentCooldownMs = 12000;
@@ -153,8 +153,11 @@ export class ChatAgent {
       );
 
       if (!decision.should_respond) {
+        console.log(`🚫 ${this.agentName} skipping response due to decision`);
         return;
       }
+
+      console.log(`✅ ${this.agentName} proceeding with response`);
 
       const tracker: Record<string, any> = {};
 
@@ -193,7 +196,7 @@ export class ChatAgent {
     tracker: Record<string, any>,
   ): Promise<void> {
     try {
-      console.log("💭 Generating response...");
+      console.log(`💭 ${this.agentName} generating response...`);
 
       const messages: LLMMessage[] = [
         {
@@ -278,19 +281,19 @@ function buildResponsePrompt({
   const psychology =
     tracker["psychology"] != null
       ? `Psychology analysis of ${message.username}: ${JSON.stringify(
-          tracker["psychology"],
-          null,
-          2,
-        )}`
+        tracker["psychology"],
+        null,
+        2,
+      )}`
       : "";
 
   const search =
     tracker["search"] != null
       ? `Semantic search of conversation history: ${JSON.stringify(
-          tracker["search"],
-          null,
-          2,
-        )}`
+        tracker["search"],
+        null,
+        2,
+      )}`
       : "";
 
   return `Recent conversation, summary, and/or peer information:

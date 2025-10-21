@@ -82,6 +82,15 @@ Remember: You are a character in the story, not the narrator. Stay in character 
         tracker: Record<string, any>
     ): Promise<void> {
         try {
+            // Check if we should respond using the parent class decision logic
+            const decision = await this.decisionEngine.shouldRespond(message, recentContext);
+            console.log(`🤔 ${this.agentName} decision: ${decision.should_respond ? "Yes" : "No"} - ${decision.reason}`);
+
+            if (!decision.should_respond) {
+                console.log(`🚫 ${this.agentName} skipping response due to decision`);
+                return;
+            }
+
             console.log(`🤔 ${this.agentName} generating suspicious response...`);
 
             // Query working representation of the player

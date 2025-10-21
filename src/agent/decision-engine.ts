@@ -20,7 +20,7 @@ export class DecisionEngine {
   constructor(
     private readonly llm: LLMProvider,
     private readonly agentName: string,
-  ) {}
+  ) { }
 
   async shouldRespond(message: Message, recentContext: string): Promise<ResponseDecision> {
     const prompt = `You are ${this.agentName} in a group chat. Based on the recent conversation and the latest message, decide if you should respond.
@@ -146,6 +146,7 @@ JSON response:`;
       console.warn("Decision loop reached safety limit, defaulting to response.");
     }
 
+    // Only generate response if we have a valid decision to respond
     await context.generateResponse(tracker);
   }
 }

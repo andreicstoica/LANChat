@@ -2,6 +2,7 @@
 
 // Game mode entry point
 process.argv.push("--game");
+process.env.GAME_MODE = "true";
 
 // Import and start the server
-import "./index.ts";
+await import("./index.ts");

@@ -11,7 +11,10 @@ import { spawn } from "node:child_process";
 // Parse command line arguments
 const args = process.argv.slice(2);
 const sessionFlag = args.findIndex((arg) => arg === "--session");
-const gameFlag = args.includes("--game");
+const gameFlag =
+  args.includes("--game") ||
+  Bun.env.GAME_MODE === "true" ||
+  process.env.GAME_MODE === "true";
 const providedSessionId =
   sessionFlag !== -1 && sessionFlag + 1 < args.length
     ? args[sessionFlag + 1]
